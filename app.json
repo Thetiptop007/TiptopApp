@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "tiptopFrontend",
-    "slug": "tiptopFrontend",
+    "name": "TipTop Restaurant",
+    "slug": "tiptop-restaurant",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,20 +10,39 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FF6B35"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tiptop.restaurant"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#FF6B35"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.tiptop.restaurant"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "developmentClient": {
+      "silentLaunch": true
+    },
+    "plugins": [
+      [
+        "expo-dev-client",
+        {
+          "addGeneratedScheme": false
+        }
+      ]
+    ],
+    "scheme": "tiptop-restaurant",
+    "extra": {
+      "eas": {
+        "projectId": "d7b6478a-8e80-4f4f-9bad-57f58ee0398d"
+      }
     }
   }
 }
