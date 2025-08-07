@@ -17,6 +17,8 @@ export interface MenuItem {
     category: string;
     image?: string;
     available: boolean;
+    rating?: number;
+    reviews?: number;
 }
 
 export interface CartItem {
@@ -70,7 +72,7 @@ export type AdminTabParamList = {
 
 export type CustomerTabParamList = {
     Home: undefined;
-    Cart: undefined;
+    Menu: undefined;
     Orders: undefined;
     Profile: undefined;
 };
