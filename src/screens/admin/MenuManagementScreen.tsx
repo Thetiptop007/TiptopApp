@@ -351,7 +351,7 @@ const MenuManagementScreen: React.FC = () => {
                     <Ionicons name="search" size={20} color="#8E8E93" />
                     <TextInput
                         style={styles.searchInput}
-                        placeholder="Search menu items, categories..."
+                        placeholder="Search menu items..."
                         placeholderTextColor="#8E8E93"
                         value={searchQuery}
                         onChangeText={setSearchQuery}

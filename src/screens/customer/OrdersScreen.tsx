@@ -9,6 +9,7 @@ interface ExtendedOrder extends Order {
 
 const CustomerOrdersScreen: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
+    const [cartItemCount, setCartItemCount] = useState(3); // Cart item count state - showing some items by default
 
     // Mock menu items for order data
     const mockMenuItems: MenuItem[] = [
@@ -94,7 +95,7 @@ const CustomerOrdersScreen: React.FC = () => {
             case 'confirmed':
                 return { color: '#2196F3', icon: 'checkmark-circle-outline', text: 'Confirmed' };
             case 'preparing':
-                return { color: '#FF6B35', icon: 'restaurant-outline', text: 'Preparing' };
+                return { color: '#e36057ff', icon: 'restaurant-outline', text: 'Preparing' };
             case 'ready':
                 return { color: '#4CAF50', icon: 'bag-check-outline', text: 'Ready for Pickup' };
             case 'picked_up':
@@ -169,7 +170,7 @@ const CustomerOrdersScreen: React.FC = () => {
 
                         {isActive && item.estimatedTime && (
                             <View style={styles.estimatedTimeContainer}>
-                                <Ionicons name="time-outline" size={14} color="#FF6B35" />
+                                <Ionicons name="time-outline" size={14} color="#e36057ff" />
                                 <Text style={styles.estimatedTime}>
                                     {item.estimatedTime} min remaining
                                 </Text>
@@ -182,7 +183,7 @@ const CustomerOrdersScreen: React.FC = () => {
                     {item.status === 'delivered' && (
                         <>
                             <TouchableOpacity style={styles.secondaryButton}>
-                                <Ionicons name="refresh-outline" size={16} color="#FF6B35" />
+                                <Ionicons name="refresh-outline" size={16} color="#e36057ff" />
                                 <Text style={styles.secondaryButtonText}>Reorder</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.primaryButton}>
@@ -195,7 +196,7 @@ const CustomerOrdersScreen: React.FC = () => {
                     {(item.status === 'pending' || item.status === 'confirmed') && (
                         <>
                             <TouchableOpacity style={styles.secondaryButton}>
-                                <Ionicons name="call-outline" size={16} color="#FF6B35" />
+                                <Ionicons name="call-outline" size={16} color="#e36057ff" />
                                 <Text style={styles.secondaryButtonText}>Call</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={[styles.primaryButton, { backgroundColor: '#F44336' }]}>
@@ -208,7 +209,7 @@ const CustomerOrdersScreen: React.FC = () => {
                     {(item.status === 'preparing' || item.status === 'ready' || item.status === 'picked_up') && (
                         <>
                             <TouchableOpacity style={styles.secondaryButton}>
-                                <Ionicons name="call-outline" size={16} color="#FF6B35" />
+                                <Ionicons name="call-outline" size={16} color="#e36057ff" />
                                 <Text style={styles.secondaryButtonText}>Call</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.primaryButton}>
@@ -253,6 +254,18 @@ const CustomerOrdersScreen: React.FC = () => {
             {/* Header - Match MenuScreen style */}
             <View style={styles.titleContainer}>
                 <Text style={styles.title}>My Orders</Text>
+
+                {/* Cart Icon */}
+                <TouchableOpacity style={styles.cartButton} activeOpacity={0.7}>
+                    <Ionicons name="bag-outline" size={24} color="#1C1C1E" />
+                    {cartItemCount > 0 && (
+                        <View style={styles.cartBadge}>
+                            <Text style={styles.cartBadgeText}>
+                                {cartItemCount > 99 ? '99+' : cartItemCount}
+                            </Text>
+                        </View>
+                    )}
+                </TouchableOpacity>
             </View>
 
             {/* Tab Navigation */}
@@ -296,6 +309,9 @@ const styles = StyleSheet.create({
         backgroundColor: '#F8F9FA',
     },
     titleContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         paddingHorizontal: 20,
         paddingTop: 60,
         paddingBottom: 15,
@@ -306,6 +322,29 @@ const styles = StyleSheet.create({
         color: '#1C1C1E',
         fontFamily: 'System',
         textAlign: 'left',
+    },
+    cartButton: {
+        position: 'relative',
+        padding: 8,
+    },
+    cartBadge: {
+        position: 'absolute',
+        top: 2,
+        right: 2,
+        backgroundColor: '#e36057ff',
+        borderRadius: 10,
+        minWidth: 20,
+        height: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+    },
+    cartBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '700',
+        fontFamily: 'System',
     },
     tabContainer: {
         flexDirection: 'row',
@@ -412,7 +451,7 @@ const styles = StyleSheet.create({
     },
     moreItems: {
         fontSize: 12,
-        color: '#FF6B35',
+        color: '#e36057ff',
         fontFamily: 'System',
         fontWeight: '500',
         fontStyle: 'italic',
@@ -434,7 +473,7 @@ const styles = StyleSheet.create({
     totalAmount: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#FF6B35',
+        color: '#e36057ff',
         fontFamily: 'System',
     },
     estimatedTimeContainer: {
@@ -447,7 +486,7 @@ const styles = StyleSheet.create({
     },
     estimatedTime: {
         fontSize: 12,
-        color: '#FF6B35',
+        color: '#e36057ff',
         fontWeight: '600',
         marginLeft: 4,
         fontFamily: 'System',
@@ -482,10 +521,10 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 25,
         borderWidth: 1,
-        borderColor: '#FF6B35',
+        borderColor: '#e36057ff',
     },
     secondaryButtonText: {
-        color: '#FF6B35',
+        color: '#e36057ff',
         fontSize: 13,
         fontWeight: '600',
         marginLeft: 6,

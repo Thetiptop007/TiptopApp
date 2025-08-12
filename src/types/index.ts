@@ -72,7 +72,7 @@ export type AdminTabParamList = {
 
 export type CustomerTabParamList = {
     Home: undefined;
-    Menu: undefined;
+    Menu: { searchQuery?: string; fromSearch?: boolean } | undefined;
     Orders: undefined;
     Profile: undefined;
 };

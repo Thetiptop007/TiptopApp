@@ -1,21 +1,99 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, NativeScrollEvent, NativeSyntheticEvent, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, NativeScrollEvent, NativeSyntheticEvent, Animated, Easing, Dimensions, UIManager, Platform, InteractionManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSwipeNavigation } from '../../contexts/SwipeNavigationContext';
 import { MenuItem } from '../../types';
 import { menuData, categories, restaurantInfo } from '../../data/menuData';
 import { useTabBar } from '../../contexts/TabBarContext';
 
 const CustomerHomeScreen: React.FC = () => {
+    const { navigateToTab } = useSwipeNavigation();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [showStickySearch, setShowStickySearch] = useState(false);
+    const [cartItemCount, setCartItemCount] = useState(0); // Cart item count state
     const stickySearchAnimation = useRef(new Animated.Value(-150)); // Start off-screen with more buffer
     const searchLogoShakeAnimation = useRef(new Animated.Value(0)); // For logo shake animation
     const searchLogoJumpAnimation = useRef(new Animated.Value(0)); // For logo jump animation
+    const searchPressAnimation = useRef(new Animated.Value(1)); // For search press animation
+    const stickySearchPressAnimation = useRef(new Animated.Value(1)); // For sticky search press animation
+    const slideAnimation = useRef(new Animated.Value(0)); // For screen slide animation
+    const screenWidth = Dimensions.get('window').width;
     const { setTabBarVisible } = useTabBar();
     const lastScrollY = useRef(0);
     const scrollThreshold = 10; // Minimum scroll distance to trigger hide/show
     const headerHeight = 220; // Height of the header
+
+    // Enable LayoutAnimation on Android
+    useEffect(() => {
+        if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+            UIManager.setLayoutAnimationEnabledExperimental(true);
+        }
+    }, []);
+
+    // Custom navigation function with smooth right-to-left slide animation
+    const navigateToMenu = () => {
+        // Add a press animation first
+        Animated.spring(searchPressAnimation.current, {
+            toValue: 0.95,
+            useNativeDriver: true,
+            tension: 100,
+            friction: 3,
+        }).start(() => {
+            Animated.spring(searchPressAnimation.current, {
+                toValue: 1,
+                useNativeDriver: true,
+                tension: 100,
+                friction: 3,
+            }).start();
+        });
+
+        // Small delay for smooth transition feel
+        InteractionManager.runAfterInteractions(() => {
+            setTimeout(() => {
+                navigateToTab('Menu', {
+                    searchQuery: searchQuery,
+                    fromSearch: true
+                });
+            }, 150);
+        });
+    };    // Search press animation
+    const handleSearchPressIn = () => {
+        Animated.spring(searchPressAnimation.current, {
+            toValue: 0.98,
+            useNativeDriver: true,
+            tension: 300,
+            friction: 20,
+        }).start();
+    };
+
+    const handleSearchPressOut = () => {
+        Animated.spring(searchPressAnimation.current, {
+            toValue: 1,
+            useNativeDriver: true,
+            tension: 300,
+            friction: 20,
+        }).start();
+    };
+
+    // Sticky search press animation
+    const handleStickySearchPressIn = () => {
+        Animated.spring(stickySearchPressAnimation.current, {
+            toValue: 0.98,
+            useNativeDriver: true,
+            tension: 300,
+            friction: 20,
+        }).start();
+    };
+
+    const handleStickySearchPressOut = () => {
+        Animated.spring(stickySearchPressAnimation.current, {
+            toValue: 1,
+            useNativeDriver: true,
+            tension: 300,
+            friction: 20,
+        }).start();
+    };
 
     // Smooth animation effect similar to CustomTabBar
     useEffect(() => {
@@ -106,6 +184,7 @@ const CustomerHomeScreen: React.FC = () => {
 
     const addToCart = (item: MenuItem) => {
         console.log('Added to cart:', item.name);
+        setCartItemCount(prev => prev + 1); // Increment cart count
     };
 
     const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -251,21 +330,42 @@ const CustomerHomeScreen: React.FC = () => {
                     ]}
                 >
                     <View style={styles.stickyHeaderRow}>
-                        <Image
-                            source={require('../../../assets/logo.png')}
-                            style={styles.stickyLogo}
-                            resizeMode="contain"
-                        />
-                        <View style={styles.stickySearchContainer}>
-                            <Ionicons name="search" size={20} color="#8E8E93" />
-                            <TextInput
-                                style={styles.stickySearchInput}
-                                placeholder="Search delicious food..."
-                                placeholderTextColor="#8E8E93"
-                                value={searchQuery}
-                                onChangeText={setSearchQuery}
-                            />
-                        </View>
+                        <Animated.View
+                            style={{
+                                transform: [{ scale: stickySearchPressAnimation.current }],
+                                flex: 1,
+                            }}
+                        >
+                            <TouchableOpacity
+                                style={styles.stickySearchContainer}
+                                activeOpacity={0.9}
+                                onPress={navigateToMenu}
+                                onPressIn={handleStickySearchPressIn}
+                                onPressOut={handleStickySearchPressOut}
+                            >
+                                <Ionicons name="search" size={20} color="#8E8E93" />
+                                <View style={styles.stickySearchInput}>
+                                    <Text style={styles.stickySearchPlaceholder}>Search delicious food...</Text>
+                                </View>
+                                <Image
+                                    source={require('../../../assets/logo.png')}
+                                    style={styles.stickyLogo}
+                                    resizeMode="contain"
+                                />
+                            </TouchableOpacity>
+                        </Animated.View>
+
+                        {/* Sticky Cart Icon */}
+                        <TouchableOpacity style={styles.stickyCartButton} activeOpacity={0.7}>
+                            <Ionicons name="bag-outline" size={24} color="#1C1C1E" />
+                            {cartItemCount > 0 && (
+                                <View style={styles.cartBadge}>
+                                    <Text style={styles.cartBadgeText}>
+                                        {cartItemCount > 99 ? '99+' : cartItemCount}
+                                    </Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
                     </View>
 
                     {/* Sticky Categories */}
@@ -317,46 +417,66 @@ const CustomerHomeScreen: React.FC = () => {
                                 <View style={styles.header}>
                                     <View style={styles.headerLogoContainer}>
                                         <Image
-                                            source={require('../../../assets/logo4.png')}
+                                            source={require('../../../assets/logo-full.png')}
                                             style={styles.headerLogo}
                                             resizeMode="contain"
                                         />
                                     </View>
+
+                                    {/* Cart Icon */}
+                                    <TouchableOpacity style={styles.cartButton} activeOpacity={0.7}>
+                                        <Ionicons name="bag-outline" size={24} color="#FFFFFF" />
+                                        {cartItemCount > 0 && (
+                                            <View style={styles.cartBadge}>
+                                                <Text style={styles.cartBadgeText}>
+                                                    {cartItemCount > 99 ? '99+' : cartItemCount}
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
                                 </View>
 
                                 {/* Search Bar */}
-                                <View style={styles.searchContainer}>
-                                    <Ionicons name="search" size={20} color="#8E8E93" />
-                                    <TextInput
-                                        style={styles.searchInput}
-                                        placeholder="Search delicious food..."
-                                        placeholderTextColor="#8E8E93"
-                                        value={searchQuery}
-                                        onChangeText={setSearchQuery}
-                                    />
-                                    <Animated.View
-                                        style={{
-                                            transform: [
-                                                {
-                                                    translateY: searchLogoJumpAnimation.current,
-                                                },
-                                                {
-                                                    rotate: searchLogoShakeAnimation.current.interpolate({
-                                                        inputRange: [-5, 5],
-                                                        outputRange: ['-5deg', '5deg'],
-                                                    }),
-                                                },
-                                            ],
-                                            transformOrigin: 'bottom',
-                                        }}
+                                <Animated.View
+                                    style={{
+                                        transform: [{ scale: searchPressAnimation.current }],
+                                    }}
+                                >
+                                    <TouchableOpacity
+                                        style={styles.searchContainer}
+                                        activeOpacity={0.9}
+                                        onPress={navigateToMenu}
+                                        onPressIn={handleSearchPressIn}
+                                        onPressOut={handleSearchPressOut}
                                     >
-                                        <Image
-                                            source={require('../../../assets/logo.png')}
-                                            style={styles.searchLogo}
-                                            resizeMode="contain"
-                                        />
-                                    </Animated.View>
-                                </View>
+                                        <Ionicons name="search" size={20} color="#8E8E93" />
+                                        <View style={styles.searchInput}>
+                                            <Text style={styles.searchPlaceholder}>Search delicious food...</Text>
+                                        </View>
+                                        <Animated.View
+                                            style={{
+                                                transform: [
+                                                    {
+                                                        translateY: searchLogoJumpAnimation.current,
+                                                    },
+                                                    {
+                                                        rotate: searchLogoShakeAnimation.current.interpolate({
+                                                            inputRange: [-5, 5],
+                                                            outputRange: ['-5deg', '5deg'],
+                                                        }),
+                                                    },
+                                                ],
+                                                transformOrigin: 'bottom',
+                                            }}
+                                        >
+                                            <Image
+                                                source={require('../../../assets/logo.png')}
+                                                style={styles.searchLogo}
+                                                resizeMode="contain"
+                                            />
+                                        </Animated.View>
+                                    </TouchableOpacity>
+                                </Animated.View>
                             </View>
                         </View>
 
@@ -419,6 +539,9 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#F8F9FA',
     },
+    innerContainer: {
+        flex: 1,
+    },
     stickySearchBar: {
         position: 'absolute',
         top: 0,
@@ -457,9 +580,9 @@ const styles = StyleSheet.create({
         borderColor: '#F0F0F0',
     },
     stickyLogo: {
-        width: 32,
-        height: 32,
-        marginRight: 4,
+        width: 30,
+        height: 30,
+        marginLeft: 8,
     },
     stickySearchInput: {
         flex: 1,
@@ -469,6 +592,18 @@ const styles = StyleSheet.create({
         fontFamily: 'System',
         color: '#1C1C1E',
         fontWeight: '500',
+        justifyContent: 'center',
+    },
+    stickySearchPlaceholder: {
+        fontSize: 15,
+        color: '#8E8E93',
+        fontFamily: 'System',
+        fontWeight: '500',
+    },
+    stickyCartButton: {
+        position: 'relative',
+        padding: 8,
+        marginLeft: 12,
     },
     headerContainer: {
         position: 'relative',
@@ -491,7 +626,7 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: 'row',
-        justifyContent: 'flex-start',
+        justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 20,
         paddingBottom: 20,
@@ -503,6 +638,29 @@ const styles = StyleSheet.create({
     headerLogo: {
         width: 120,
         height: 50,
+    },
+    cartButton: {
+        position: 'relative',
+        padding: 8,
+    },
+    cartBadge: {
+        position: 'absolute',
+        top: 2,
+        right: 2,
+        backgroundColor: '#e36057ff',
+        borderRadius: 10,
+        minWidth: 20,
+        height: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+    },
+    cartBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '700',
+        fontFamily: 'System',
     },
     locationContainer: {
         flexDirection: 'row',
@@ -549,6 +707,13 @@ const styles = StyleSheet.create({
         fontFamily: 'System',
         color: '#1C1C1E',
         fontWeight: '500',
+        justifyContent: 'center',
+    },
+    searchPlaceholder: {
+        fontSize: 15,
+        color: '#8E8E93',
+        fontFamily: 'System',
+        fontWeight: '500',
     },
     categoriesContainer: {
         marginBottom: 20,
@@ -585,7 +750,7 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     selectedCategoryText: {
-        color: '#FF6B35',
+        color: '#e36057ff',
         fontWeight: '600',
         fontFamily: 'System',
     },
@@ -604,7 +769,7 @@ const styles = StyleSheet.create({
     },
     seeAllText: {
         fontSize: 12,
-        color: '#FF6B35',
+        color: '#e36057ff',
         fontWeight: '600',
         fontFamily: 'System',
     },
@@ -705,11 +870,11 @@ const styles = StyleSheet.create({
         marginRight: 8,
     },
     priceTag: {
-        backgroundColor: '#FF6B35',
+        backgroundColor: '#e36057ff',
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 15,
-        shadowColor: '#FF6B35',
+        shadowColor: '#e36057ff',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
         shadowRadius: 4,
@@ -874,11 +1039,11 @@ const styles = StyleSheet.create({
     menuPrice: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#FF6B35',
+        color: '#e36057ff',
         fontFamily: 'System',
     },
     addButton: {
-        backgroundColor: '#FF6B35',
+        backgroundColor: '#e36057ff',
         width: 36,
         height: 36,
         borderRadius: 18,
@@ -919,7 +1084,7 @@ const styles = StyleSheet.create({
         fontFamily: 'System',
     },
     selectedStickyCategoryText: {
-        color: '#FF6B35',
+        color: '#e36057ff',
         fontWeight: '600',
         fontFamily: 'System',
     },

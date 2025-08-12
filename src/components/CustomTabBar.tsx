@@ -5,7 +5,11 @@ import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useTabBar } from '../contexts/TabBarContext';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 
-const CustomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
+interface CustomTabBarProps extends BottomTabBarProps {
+    onTabPress?: (routeName: string) => void;
+}
+
+const CustomTabBar: React.FC<CustomTabBarProps> = ({ state, descriptors, navigation, onTabPress }) => {
     const { isTabBarVisible } = useTabBar();
     const translateY = useRef(new Animated.Value(0)).current; // Start visible (0px position)
 
@@ -32,6 +36,8 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
             // Customer routes
             case 'Home':
                 return focused ? 'home' : 'home-outline';
+            case 'Menu':
+                return focused ? 'restaurant' : 'restaurant-outline';
             case 'Search':
                 return focused ? 'search' : 'search-outline';
             case 'Cart':
@@ -83,14 +89,20 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
                     const isFocused = state.index === index;
 
                     const onPress = () => {
-                        const event = navigation.emit({
-                            type: 'tabPress',
-                            target: route.key,
-                            canPreventDefault: true,
-                        });
+                        if (onTabPress) {
+                            // Use custom tab press handler for swipe navigation
+                            onTabPress(route.name);
+                        } else {
+                            // Use default navigation
+                            const event = navigation.emit({
+                                type: 'tabPress',
+                                target: route.key,
+                                canPreventDefault: true,
+                            });
 
-                        if (!isFocused && !event.defaultPrevented) {
-                            navigation.navigate(route.name);
+                            if (!isFocused && !event.defaultPrevented) {
+                                navigation.navigate(route.name);
+                            }
                         }
                     };
 
@@ -131,6 +143,8 @@ const styles = StyleSheet.create({
         left: 14,
         right: 14,
         alignItems: 'center',
+        zIndex: 1000, // Ensure tab bar stays on top
+        elevation: 1000, // For Android
     },
     tabBar: {
         flexDirection: 'row',
@@ -167,8 +181,8 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     iconContainerFocused: {
-        backgroundColor: 'rgba(255, 107, 53, 0.85)',
-        shadowColor: '#FF6B35',
+        backgroundColor: 'rgba(227, 96, 87, 0.85)',
+        shadowColor: '#e36057ff',
         shadowOffset: {
             width: 0,
             height: 3

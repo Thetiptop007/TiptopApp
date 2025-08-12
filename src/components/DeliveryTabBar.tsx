@@ -5,7 +5,11 @@ import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 const { width } = Dimensions.get('window');
 
-const DeliveryTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
+interface DeliveryTabBarProps extends BottomTabBarProps {
+    onTabPress?: (routeName: string) => void;
+}
+
+const DeliveryTabBar: React.FC<DeliveryTabBarProps> = ({ state, descriptors, navigation, onTabPress }) => {
     return (
         <View style={styles.container}>
             <View style={styles.tabBar}>
@@ -27,7 +31,12 @@ const DeliveryTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navig
                         });
 
                         if (!isFocused && !event.defaultPrevented) {
-                            navigation.navigate(route.name, route.params);
+                            // Use custom onTabPress if provided (for swipe navigation)
+                            if (onTabPress) {
+                                onTabPress(route.name);
+                            } else {
+                                navigation.navigate(route.name, route.params);
+                            }
                         }
                     };
 

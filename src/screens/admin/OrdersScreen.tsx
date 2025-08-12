@@ -189,7 +189,7 @@ const AdminOrdersScreen: React.FC = () => {
         switch (status) {
             case 'pending': return '#FF9800';
             case 'confirmed': return '#2196F3';
-            case 'preparing': return '#FF6B35';
+            case 'preparing': return '#F44336';
             case 'ready': return '#4CAF50';
             case 'picked_up': return '#9C27B0';
             case 'delivered': return '#1C1C1E';
@@ -299,61 +299,50 @@ const AdminOrdersScreen: React.FC = () => {
 
                 <View style={styles.orderMeta}>
                     <Text style={styles.orderAmount}>₹{order.total.toFixed(2)}</Text>
-                    <View style={styles.addressContainer}>
-                        <Ionicons name="location-outline" size={14} color="#8E8E93" />
-                        <Text style={styles.orderAddress} numberOfLines={1}>
-                            {order.customerAddress}
-                        </Text>
-                    </View>
-                    <View style={styles.phoneContainer}>
-                        <Ionicons name="call-outline" size={14} color="#8E8E93" />
-                        <Text style={styles.orderPhone}>{order.customerPhone}</Text>
+                    <View style={styles.contactInfo}>
+                        <View style={styles.addressContainer}>
+                            <Ionicons name="location-outline" size={14} color="#8E8E93" />
+                            <Text style={styles.orderAddress} numberOfLines={1}>
+                                {order.customerAddress}
+                            </Text>
+                        </View>
+                        <View style={styles.phoneContainer}>
+                            <Ionicons name="call-outline" size={14} color="#8E8E93" />
+                            <Text style={styles.orderPhone}>{order.customerPhone}</Text>
+                        </View>
                     </View>
                 </View>
             </View>
 
-            {/* Order Summary Section */}
-            <View style={styles.orderSummary}>
-                <View style={styles.summaryDivider} />
-                <View style={styles.summaryContent}>
-                    <View style={styles.summaryItem}>
-                        <View style={styles.summaryIconContainer}>
-                            <Ionicons name="restaurant-outline" size={16} color="#FF6B35" />
-                        </View>
-                        <Text style={styles.summaryLabel}>Total Items</Text>
-                        <Text style={styles.summaryValue}>
-                            {order.items.reduce((sum, item) => sum + item.quantity, 0)}
-                        </Text>
-                    </View>
+            {/* Action Buttons Section */}
+            <View style={styles.actionSection}>
+                <TouchableOpacity
+                    style={[styles.actionButton, styles.assignButton]}
+                    onPress={() => {
+                        Alert.alert('Assign Order', `Assign order #${order.id} to delivery partner?`);
+                    }}
+                >
+                    <Ionicons name="person-add-outline" size={16} color="#FFFFFF" />
+                    <Text style={styles.actionButtonText}>Assign Order</Text>
+                </TouchableOpacity>
 
-                    <View style={styles.summaryItem}>
-                        <View style={styles.summaryIconContainer}>
-                            <Ionicons name="card-outline" size={16} color="#4CAF50" />
-                        </View>
-                        <Text style={styles.summaryLabel}>Order Value</Text>
-                        <Text style={styles.summaryValue}>₹{order.total.toFixed(2)}</Text>
-                    </View>
+                <TouchableOpacity
+                    style={[styles.actionButton, styles.statusButton]}
+                    onPress={() => handleOrderPress(order)}
+                >
+                    <Ionicons name="create-outline" size={16} color="#FFFFFF" />
+                    <Text style={styles.actionButtonText}>Update Status</Text>
+                </TouchableOpacity>
 
-                    <View style={styles.summaryItem}>
-                        <View style={styles.summaryIconContainer}>
-                            <Ionicons name="time-outline" size={16} color="#2196F3" />
-                        </View>
-                        <Text style={styles.summaryLabel}>Order Time</Text>
-                        <Text style={styles.summaryValue}>
-                            {order.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </Text>
-                    </View>
-
-                    <View style={styles.summaryItem}>
-                        <View style={styles.summaryIconContainer}>
-                            <Ionicons name="car-outline" size={16} color="#9C27B0" />
-                        </View>
-                        <Text style={styles.summaryLabel}>Delivery</Text>
-                        <Text style={styles.summaryValue}>
-                            {order.customerAddress.split(',')[0]}
-                        </Text>
-                    </View>
-                </View>
+                <TouchableOpacity
+                    style={[styles.actionButton, styles.callButton]}
+                    onPress={() => {
+                        Alert.alert('Call Customer', `Call ${order.customerPhone}?`);
+                    }}
+                >
+                    <Ionicons name="call-outline" size={16} color="#FFFFFF" />
+                    <Text style={styles.actionButtonText}>Call</Text>
+                </TouchableOpacity>
             </View>
         </TouchableOpacity>
     );
@@ -375,7 +364,7 @@ const AdminOrdersScreen: React.FC = () => {
                     <Ionicons name="search" size={20} color="#8E8E93" />
                     <TextInput
                         style={styles.searchInput}
-                        placeholder="Search orders by ID, address, or item..."
+                        placeholder="Search orders"
                         placeholderTextColor="#8E8E93"
                         value={searchQuery}
                         onChangeText={setSearchQuery}
@@ -596,6 +585,7 @@ const styles = StyleSheet.create({
     },
     filterContainer: {
         marginBottom: 20,
+        paddingVertical: 10,
     },
     filterContent: {
         paddingHorizontal: 20,
@@ -603,49 +593,60 @@ const styles = StyleSheet.create({
     filterTab: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F5F5F7',
+        backgroundColor: '#FFFFFF',
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 20,
         marginRight: 12,
-        shadowColor: '#2C2C2E',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-        elevation: 2,
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+        elevation: 4,
+        borderWidth: 1,
+        borderColor: '#F0F0F0',
     },
     activeFilterTab: {
-        backgroundColor: '#1C1C1E',
+        backgroundColor: '#e36057ff',
+        borderColor: '#e36057ff',
+        shadowColor: '#e36057ff',
+        shadowOpacity: 0.25,
+        elevation: 6,
     },
     filterTabText: {
         fontSize: 14,
-        fontWeight: '600',
-        color: '#8E8E93',
+        fontWeight: '700',
+        color: '#2C2C2E',
         fontFamily: 'System',
         marginRight: 8,
     },
     activeFilterTabText: {
         color: '#FFFFFF',
+        fontWeight: '800',
     },
     filterTabBadge: {
-        backgroundColor: '#E5E5EA',
+        backgroundColor: '#F8F9FA',
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 10,
         minWidth: 20,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E8E8E8',
     },
     activeFilterTabBadge: {
-        backgroundColor: '#FF6B35',
+        backgroundColor: '#FFFFFF',
+        borderColor: '#FFFFFF',
     },
     filterTabBadgeText: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#8E8E93',
+        color: '#2C2C2E',
         fontFamily: 'System',
     },
     activeFilterTabBadgeText: {
-        color: '#FFFFFF',
+        color: '#e36057ff',
+        fontWeight: '800',
     },
     ordersContainer: {
         paddingHorizontal: 20,
@@ -656,24 +657,28 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#1C1C1E',
         marginBottom: 16,
-        fontFamily: 'System',
     },
     orderCard: {
-        backgroundColor: '#F5F5F7',
+        backgroundColor: '#FFFFFF',
         borderRadius: 16,
         padding: 16,
         marginBottom: 12,
-        shadowColor: '#2C2C2E',
+        shadowColor: '#000000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.08,
         shadowRadius: 8,
         elevation: 3,
+        borderWidth: 1,
+        borderColor: '#F0F0F0',
     },
     orderHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 12,
+        paddingBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
     },
     orderInfo: {
         flex: 1,
@@ -682,13 +687,12 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
         color: '#1C1C1E',
-        fontFamily: 'System',
         marginBottom: 2,
     },
     orderTime: {
         fontSize: 13,
         color: '#8E8E93',
-        fontFamily: 'System',
+        fontWeight: '500',
     },
     statusBadge: {
         flexDirection: 'row',
@@ -702,56 +706,62 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: '700',
         marginLeft: 4,
-        fontFamily: 'System',
+        letterSpacing: 0.3,
     },
     orderDetails: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+        flexDirection: 'column',
+        marginBottom: 12,
     },
     orderItems: {
-        flex: 1,
-        marginRight: 16,
+        marginBottom: 12,
     },
     itemsTitle: {
         fontSize: 14,
         fontWeight: '600',
         color: '#1C1C1E',
         marginBottom: 4,
-        fontFamily: 'System',
     },
     itemText: {
         fontSize: 13,
         color: '#636366',
         marginBottom: 2,
-        fontFamily: 'System',
+        lineHeight: 18,
     },
     moreItems: {
         fontSize: 13,
-        color: '#FF6B35',
+        color: '#e36057ff',
         fontWeight: '600',
-        fontFamily: 'System',
+        marginTop: 2,
     },
     orderMeta: {
-        alignItems: 'flex-end',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+        paddingVertical: 8,
+        backgroundColor: '#F8F9FA',
+        paddingHorizontal: 12,
+        borderRadius: 8,
     },
     orderAmount: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#FF6B35',
-        marginBottom: 6,
-        fontFamily: 'System',
+        color: '#e36057ff',
+    },
+    contactInfo: {
+        flex: 1,
+        marginLeft: 16,
     },
     addressContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 4,
-        maxWidth: 120,
     },
     orderAddress: {
         fontSize: 12,
-        color: '#8E8E93',
+        color: '#636366',
         marginLeft: 4,
-        fontFamily: 'System',
+        flex: 1,
     },
     phoneContainer: {
         flexDirection: 'row',
@@ -759,50 +769,47 @@ const styles = StyleSheet.create({
     },
     orderPhone: {
         fontSize: 12,
-        color: '#8E8E93',
+        color: '#636366',
         marginLeft: 4,
-        fontFamily: 'System',
     },
     orderSummary: {
-        marginTop: 12,
+        marginTop: 16,
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: '#F0F0F0',
     },
-    summaryDivider: {
-        height: 1,
-        backgroundColor: '#F0F0F0',
-        marginBottom: 12,
-    },
-    summaryContent: {
+    actionSection: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        marginTop: 12,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#F0F0F0',
     },
-    summaryItem: {
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
         flex: 1,
-        alignItems: 'center',
-    },
-    summaryIconContainer: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: '#F8F9FA',
+        marginHorizontal: 2,
         justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 6,
     },
-    summaryLabel: {
-        fontSize: 11,
-        color: '#8E8E93',
-        fontFamily: 'System',
-        fontWeight: '500',
-        textAlign: 'center',
-        marginBottom: 2,
+    assignButton: {
+        backgroundColor: '#4CAF50',
     },
-    summaryValue: {
-        fontSize: 13,
-        color: '#1C1C1E',
-        fontFamily: 'System',
-        fontWeight: '700',
-        textAlign: 'center',
+    statusButton: {
+        backgroundColor: '#e36057ff',
+    },
+    callButton: {
+        backgroundColor: '#2196F3',
+    },
+    actionButtonText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '600',
+        marginLeft: 4,
     },
     emptyState: {
         alignItems: 'center',
@@ -903,7 +910,7 @@ const styles = StyleSheet.create({
     },
     itemDetailPrice: {
         fontSize: 14,
-        color: '#FF6B35',
+        color: '#FF6659',
         fontFamily: 'System',
         fontWeight: '700',
     },
