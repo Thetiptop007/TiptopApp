@@ -1,6 +1,20 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, Alert, Image, ScrollView, Switch, Animated, Easing } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+    View,
+    Text,
+    TouchableOpacity,
+    ScrollView,
+    StyleSheet,
+    FlatList,
+    Image,
+    TextInput,
+    Modal,
+    Alert,
+    Animated,
+    Platform
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { launchImageLibrary, launchCamera, ImagePickerResponse, MediaType } from 'react-native-image-picker';
 import { MenuItem } from '../../types';
 import { categories } from '../../data/menuData';
 
@@ -73,6 +87,8 @@ const MenuManagementScreen: React.FC = () => {
         price: '',
         category: '',
         image: '',
+        portion: '',
+        rating: '',
     });
 
     const searchLogoShakeAnimation = useRef(new Animated.Value(0)); // For logo shake animation
@@ -157,7 +173,7 @@ const MenuManagementScreen: React.FC = () => {
 
     const handleAddItem = () => {
         setEditingItem(null);
-        setFormData({ name: '', description: '', price: '', category: '', image: '' });
+        setFormData({ name: '', description: '', price: '', category: '', image: '', portion: '', rating: '' });
         setModalVisible(true);
     };
 
@@ -169,6 +185,8 @@ const MenuManagementScreen: React.FC = () => {
             price: item.price.toString(),
             category: item.category,
             image: item.image || '',
+            portion: item.portion || '',
+            rating: item.rating ? item.rating.toString() : '',
         });
         setModalVisible(true);
     };
@@ -187,8 +205,9 @@ const MenuManagementScreen: React.FC = () => {
             category: formData.category,
             available: editingItem ? editingItem.available : true,
             image: formData.image || undefined,
-            rating: editingItem ? editingItem.rating : 4.0,
+            rating: formData.rating ? parseFloat(formData.rating) : (editingItem ? editingItem.rating : 4.0),
             reviews: editingItem ? editingItem.reviews : 0,
+            portion: formData.portion ? formData.portion as "Quarter" | "Half" | "Full" : undefined,
         };
 
         if (editingItem) {
@@ -217,20 +236,74 @@ const MenuManagementScreen: React.FC = () => {
         );
     };
 
-    const handleDuplicateItem = (item: MenuItem) => {
-        const duplicatedItem: MenuItem = {
-            ...item,
-            id: Date.now().toString(),
-            name: `${item.name} (Copy)`,
-        };
-        setMenuItems(prev => [...prev, duplicatedItem]);
-        Alert.alert('Success', 'Item duplicated successfully!');
-    };
-
     const toggleAvailability = (itemId: string) => {
         setMenuItems(prev => prev.map(item =>
             item.id === itemId ? { ...item, available: !item.available } : item
         ));
+    };
+
+    const pickImageFromGallery = () => {
+        const options = {
+            mediaType: 'photo' as MediaType,
+            includeBase64: false,
+            maxHeight: 2000,
+            maxWidth: 2000,
+        };
+
+        launchImageLibrary(options, (response: ImagePickerResponse) => {
+            if (response.didCancel || response.errorMessage) {
+                return;
+            }
+            if (response.assets && response.assets[0]) {
+                setFormData(prev => ({ ...prev, image: response.assets![0].uri! }));
+            }
+        });
+    };
+
+    const takePhotoFromCamera = () => {
+        const options = {
+            mediaType: 'photo' as MediaType,
+            includeBase64: false,
+            maxHeight: 2000,
+            maxWidth: 2000,
+        };
+
+        launchCamera(options, (response: ImagePickerResponse) => {
+            if (response.didCancel || response.errorMessage) {
+                return;
+            }
+            if (response.assets && response.assets[0]) {
+                setFormData(prev => ({ ...prev, image: response.assets![0].uri! }));
+            }
+        });
+    };
+
+    const showImagePickerOptions = () => {
+        if (formData.image) {
+            Alert.alert(
+                'Image Options',
+                'Choose an option',
+                [
+                    { text: 'Change Image', onPress: showImageSelectorOptions },
+                    { text: 'Remove Image', onPress: () => setFormData(prev => ({ ...prev, image: '' })), style: 'destructive' },
+                    { text: 'Cancel', style: 'cancel' },
+                ]
+            );
+        } else {
+            showImageSelectorOptions();
+        }
+    };
+
+    const showImageSelectorOptions = () => {
+        Alert.alert(
+            'Select Image',
+            'Choose how you want to select an image',
+            [
+                { text: 'Camera', onPress: takePhotoFromCamera },
+                { text: 'Gallery', onPress: pickImageFromGallery },
+                { text: 'Cancel', style: 'cancel' },
+            ]
+        );
     };
 
     const renderCategoryFilter = ({ item }: { item: any }) => (
@@ -300,7 +373,7 @@ const MenuManagementScreen: React.FC = () => {
                         <Text style={styles.menuCategory}>{item.category}</Text>
                     </View>
                     <View style={styles.ratingContainer}>
-                        <Ionicons name="star" size={12} color="#FF6B35" />
+                        <Ionicons name="star" size={12} color="#e36057ff" />
                         <Text style={styles.ratingText}>{item.rating}</Text>
                         <Text style={styles.reviewsText}>({item.reviews})</Text>
                     </View>
@@ -314,15 +387,6 @@ const MenuManagementScreen: React.FC = () => {
                     >
                         <Ionicons name="pencil" size={16} color="#FFFFFF" />
                         <Text style={styles.actionButtonText}>Edit</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.duplicateButton]}
-                        onPress={() => handleDuplicateItem(item)}
-                        activeOpacity={0.8}
-                    >
-                        <Ionicons name="copy" size={16} color="#FFFFFF" />
-                        <Text style={styles.actionButtonText}>Duplicate</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -415,7 +479,7 @@ const MenuManagementScreen: React.FC = () => {
                             <Ionicons name="restaurant-outline" size={64} color="#8E8E93" />
                             <Text style={styles.emptyStateTitle}>No items found</Text>
                             <Text style={styles.emptyStateText}>
-                                {searchQuery ? 'Try adjusting your search query' : 'Start by adding your first menu item'}
+                                {searchQuery ? 'Try adjusting your search criteria' : 'Add your first menu item to get started'}
                             </Text>
                             {!searchQuery && (
                                 <TouchableOpacity
@@ -423,7 +487,7 @@ const MenuManagementScreen: React.FC = () => {
                                     onPress={handleAddItem}
                                 >
                                     <Ionicons name="add" size={20} color="#FFFFFF" />
-                                    <Text style={styles.addButtonText}>Add Your First Item</Text>
+                                    <Text style={styles.addButtonText}>Add First Item</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -441,9 +505,16 @@ const MenuManagementScreen: React.FC = () => {
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>
-                                {editingItem ? 'Edit Menu Item' : 'Add New Menu Item'}
-                            </Text>
+                            <View style={styles.modalTitleContainer}>
+                                <Ionicons 
+                                    name={editingItem ? "pencil" : "add-circle"} 
+                                    size={24} 
+                                    color="#e36057ff" 
+                                />
+                                <Text style={styles.modalTitle}>
+                                    {editingItem ? 'Edit Menu Item' : 'Add New Menu Item'}
+                                </Text>
+                            </View>
                             <TouchableOpacity
                                 style={styles.closeButton}
                                 onPress={() => setModalVisible(false)}
@@ -453,63 +524,167 @@ const MenuManagementScreen: React.FC = () => {
                         </View>
 
                         <ScrollView showsVerticalScrollIndicator={false}>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Item Name *"
-                                placeholderTextColor="#8E8E93"
-                                value={formData.name}
-                                onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
-                            />
-
-                            <TextInput
-                                style={[styles.input, styles.textAreaInput]}
-                                placeholder="Description *"
-                                placeholderTextColor="#8E8E93"
-                                value={formData.description}
-                                onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
-                                multiline
-                                numberOfLines={3}
-                            />
-
-                            <View style={styles.inputRow}>
+                            {/* Item Name Input */}
+                            <View style={styles.inputGroup}>
+                                <View style={styles.labelContainer}>
+                                    <Text style={styles.inputLabel}>Item Name</Text>
+                                    <Text style={styles.requiredIndicator}>*</Text>
+                                </View>
                                 <TextInput
-                                    style={[styles.input, styles.halfInput]}
-                                    placeholder="Price (₹) *"
+                                    style={styles.input}
+                                    placeholder="Enter item name"
                                     placeholderTextColor="#8E8E93"
-                                    value={formData.price}
-                                    onChangeText={(text) => setFormData(prev => ({ ...prev, price: text }))}
-                                    keyboardType="numeric"
-                                />
-
-                                <TextInput
-                                    style={[styles.input, styles.halfInput]}
-                                    placeholder="Category *"
-                                    placeholderTextColor="#8E8E93"
-                                    value={formData.category}
-                                    onChangeText={(text) => setFormData(prev => ({ ...prev, category: text }))}
+                                    value={formData.name}
+                                    onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
                                 />
                             </View>
 
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Image URL (optional)"
-                                placeholderTextColor="#8E8E93"
-                                value={formData.image}
-                                onChangeText={(text) => setFormData(prev => ({ ...prev, image: text }))}
-                            />
+                            {/* Description Input */}
+                            <View style={styles.inputGroup}>
+                                <View style={styles.labelContainer}>
+                                    <Text style={styles.inputLabel}>Description</Text>
+                                    <Text style={styles.requiredIndicator}>*</Text>
+                                </View>
+                                <TextInput
+                                    style={[styles.input, styles.textAreaInput]}
+                                    placeholder="Describe the dish, ingredients, and preparation..."
+                                    placeholderTextColor="#8E8E93"
+                                    value={formData.description}
+                                    onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
+                                    multiline
+                                    numberOfLines={4}
+                                />
+                            </View>
 
+                            {/* Price and Rating Row */}
+                            <View style={styles.inputRow}>
+                                <View style={[styles.inputGroup, styles.halfInput]}>
+                                    <View style={styles.labelContainer}>
+                                        <Text style={styles.inputLabel}>Price (₹)</Text>
+                                        <Text style={styles.requiredIndicator}>*</Text>
+                                    </View>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="0.00"
+                                        placeholderTextColor="#8E8E93"
+                                        value={formData.price}
+                                        onChangeText={(text) => setFormData(prev => ({ ...prev, price: text }))}
+                                        keyboardType="numeric"
+                                    />
+                                </View>
+                                <View style={[styles.inputGroup, styles.halfInput]}>
+                                    <Text style={styles.inputLabel}>Rating (1-5)</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="4.0"
+                                        placeholderTextColor="#8E8E93"
+                                        value={formData.rating}
+                                        onChangeText={(text) => setFormData(prev => ({ ...prev, rating: text }))}
+                                        keyboardType="decimal-pad"
+                                    />
+                                </View>
+                            </View>
+
+                            {/* Portion Size */}
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.inputLabel}>Portion Size (Optional)</Text>
+                                <View style={styles.portionButtonsContainer}>
+                                    {['Quarter', 'Half', 'Full'].map((portion) => (
+                                        <TouchableOpacity
+                                            key={portion}
+                                            style={[
+                                                styles.portionButton,
+                                                formData.portion === portion && styles.selectedPortionButton
+                                            ]}
+                                            onPress={() => setFormData(prev => ({ ...prev, portion }))}
+                                        >
+                                            <Text style={[
+                                                styles.portionButtonText,
+                                                formData.portion === portion && styles.selectedPortionButtonText
+                                            ]}>
+                                                {portion}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            {/* Category Selection */}
+                            <View style={styles.inputGroup}>
+                                <View style={styles.labelContainer}>
+                                    <Text style={styles.inputLabel}>Category</Text>
+                                    <Text style={styles.requiredIndicator}>*</Text>
+                                </View>
+                                <View style={styles.categoryRadioContainer}>
+                                    {categories.filter(cat => cat.name !== 'All').map((category) => (
+                                        <TouchableOpacity
+                                            key={category.name}
+                                            style={[
+                                                styles.categoryRadioButton,
+                                                formData.category === category.name && styles.selectedCategoryRadioButton
+                                            ]}
+                                            onPress={() => setFormData(prev => ({ ...prev, category: category.name }))}
+                                        >
+                                            <View style={[
+                                                styles.radioCircle,
+                                                formData.category === category.name && styles.selectedRadioCircle
+                                            ]}>
+                                                {formData.category === category.name && (
+                                                    <View style={styles.radioDot} />
+                                                )}
+                                            </View>
+                                            <Text style={styles.categoryEmoji}>{category.icon}</Text>
+                                            <Text style={[
+                                                styles.categoryRadioText,
+                                                formData.category === category.name && styles.selectedCategoryRadioText
+                                            ]}>
+                                                {category.name}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            {/* Image Selection */}
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.inputLabel}>Item Image (Optional)</Text>
+                                <TouchableOpacity
+                                    style={styles.imageUploadButton}
+                                    onPress={showImagePickerOptions}
+                                >
+                                    <Ionicons name="camera" size={24} color="#e36057ff" />
+                                    <Text style={styles.imageUploadButtonText}>
+                                        {formData.image ? 'Change Image' : 'Select from Gallery or Camera'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Image Preview */}
                             {formData.image ? (
                                 <View style={styles.imagePreviewContainer}>
                                     <Text style={styles.imagePreviewLabel}>Image Preview:</Text>
-                                    <Image
-                                        source={{ uri: formData.image }}
-                                        style={styles.imagePreview}
-                                        resizeMode="cover"
-                                        onError={() => { }}
-                                    />
+                                    <View style={styles.imagePreviewWrapper}>
+                                        <Image
+                                            source={{ uri: formData.image }}
+                                            style={styles.imagePreview}
+                                            resizeMode="cover"
+                                        />
+                                        <TouchableOpacity
+                                            style={styles.removeImageButton}
+                                            onPress={() => setFormData(prev => ({ ...prev, image: '' }))}
+                                        >
+                                            <Ionicons name="close-circle" size={24} color="#F44336" />
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
-                            ) : null}
+                            ) : (
+                                <View style={styles.imagePlaceholder}>
+                                    <Ionicons name="image-outline" size={48} color="#8E8E93" />
+                                    <Text style={styles.imagePlaceholderText}>No image selected</Text>
+                                </View>
+                            )}
 
+                            {/* Modal Actions */}
                             <View style={styles.modalActions}>
                                 <TouchableOpacity
                                     style={[styles.modalButton, styles.cancelButton]}
@@ -522,6 +697,7 @@ const MenuManagementScreen: React.FC = () => {
                                     style={[styles.modalButton, styles.saveButton]}
                                     onPress={handleSaveItem}
                                 >
+                                    <Ionicons name={editingItem ? "checkmark" : "add"} size={18} color="#FFFFFF" />
                                     <Text style={styles.modalButtonText}>
                                         {editingItem ? 'Update Item' : 'Add Item'}
                                     </Text>
@@ -613,6 +789,13 @@ const styles = StyleSheet.create({
     },
     selectedCategoryIcon: {
         backgroundColor: '#343435ff',
+        shadowColor: '#e36057ff',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+        borderWidth: 2,
+        borderColor: 'rgba(227, 96, 87, 0.3)',
     },
     categoryEmoji: {
         fontSize: 20,
@@ -626,9 +809,10 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     selectedCategoryText: {
-        color: '#FF6B35',
-        fontWeight: '600',
+        color: '#e36057ff',
+        fontWeight: '700',
         fontFamily: 'System',
+        fontSize: 13,
     },
     menuContainer: {
         paddingHorizontal: 20,
@@ -649,41 +833,49 @@ const styles = StyleSheet.create({
     addButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FF6B35',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        shadowColor: '#FF6B35',
-        shadowOffset: { width: 0, height: 4 },
+        backgroundColor: '#e36057ff',
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        borderRadius: 25,
+        shadowColor: '#e36057ff',
+        shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 4,
+        shadowRadius: 12,
+        elevation: 8,
+        borderWidth: 0.5,
+        borderColor: 'rgba(227, 96, 87, 0.3)',
     },
     addButtonText: {
         color: '#FFFFFF',
-        marginLeft: 6,
+        marginLeft: 8,
         fontWeight: '700',
         fontFamily: 'System',
-        fontSize: 14,
+        fontSize: 15,
+        letterSpacing: 0.5,
     },
     menuList: {
         paddingBottom: 20,
     },
     menuCard: {
         backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        marginBottom: 16,
-        shadowColor: '#2C2C2E',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-        elevation: 5,
+        borderRadius: 20,
+        marginBottom: 18,
+        shadowColor: '#1C1C1E',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 16,
+        elevation: 12,
         overflow: 'hidden',
+        borderWidth: 0.5,
+        borderColor: '#F0F0F0',
+        // Add subtle gradient effect
+        position: 'relative',
     },
     menuImageContainer: {
         position: 'relative',
-        height: 160,
+        height: 180,
         width: '100%',
+        backgroundColor: '#F8F9FA',
     },
     menuImage: {
         width: '100%',
@@ -698,18 +890,20 @@ const styles = StyleSheet.create({
     },
     availabilityBadge: {
         position: 'absolute',
-        top: 12,
-        right: 12,
+        top: 15,
+        right: 15,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 16,
-        shadowColor: '#2C2C2E',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-        elevation: 3,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+        shadowColor: '#1C1C1E',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 6,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
     },
     availabilityText: {
         color: '#FFFFFF',
@@ -719,7 +913,8 @@ const styles = StyleSheet.create({
         fontFamily: 'System',
     },
     menuInfo: {
-        padding: 16,
+        padding: 20,
+        backgroundColor: '#FFFFFF',
     },
     menuHeader: {
         flexDirection: 'row',
@@ -736,10 +931,11 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
     menuPrice: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#FF6B35',
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#e36057ff',
         fontFamily: 'System',
+        letterSpacing: 0.5,
     },
     menuDescription: {
         fontSize: 14,
@@ -757,59 +953,78 @@ const styles = StyleSheet.create({
     categoryTagContainer: {
         flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: '#F8F9FA',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E5E5E7',
     },
     menuCategory: {
         fontSize: 12,
-        color: '#8E8E93',
+        color: '#2C2C2E',
         fontFamily: 'System',
-        fontWeight: '500',
+        fontWeight: '600',
         marginLeft: 4,
     },
     ratingContainer: {
         flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: '#FFF8F5',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e36057ff',
     },
     ratingText: {
         fontSize: 12,
-        fontWeight: '600',
-        color: '#1C1C1E',
+        fontWeight: '700',
+        color: '#e36057ff',
         marginLeft: 4,
         fontFamily: 'System',
     },
     reviewsText: {
-        fontSize: 12,
-        color: '#8E8E93',
+        fontSize: 11,
+        color: '#e36057ff',
         fontFamily: 'System',
         marginLeft: 2,
+        opacity: 0.8,
     },
     menuActions: {
         flexDirection: 'row',
-        gap: 8,
+        gap: 10,
+        marginTop: 4,
     },
     actionButton: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        borderRadius: 10,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        borderRadius: 16,
+        shadowColor: '#1C1C1E',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        elevation: 4,
+        borderWidth: 0.5,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
     },
     editButton: {
-        backgroundColor: '#007AFF',
-    },
-    duplicateButton: {
-        backgroundColor: '#34C759',
+        backgroundColor: '#1C1C1E',
     },
     deleteButton: {
-        backgroundColor: '#FF3B30',
+        backgroundColor: '#e36057ff',
     },
     actionButtonText: {
         color: '#FFFFFF',
-        marginLeft: 6,
-        fontSize: 12,
+        marginLeft: 8,
+        fontSize: 13,
         fontWeight: '700',
         fontFamily: 'System',
+        letterSpacing: 0.3,
     },
     emptyState: {
         alignItems: 'center',
@@ -853,11 +1068,17 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: '#F0F0F0',
     },
+    modalTitleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
     modalTitle: {
         fontSize: 20,
         fontWeight: '700',
         color: '#1C1C1E',
         fontFamily: 'System',
+        marginLeft: 10,
     },
     closeButton: {
         padding: 4,
@@ -866,11 +1087,17 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#E5E5EA',
         padding: 16,
-        borderRadius: 12,
-        marginBottom: 16,
+        borderRadius: 14,
+        marginBottom: 0,
         fontSize: 16,
         fontFamily: 'System',
-        backgroundColor: '#F8F9FA',
+        backgroundColor: '#FAFAFA',
+        color: '#1C1C1E',
+        shadowColor: '#1C1C1E',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
     },
     textAreaInput: {
         height: 80,
@@ -882,7 +1109,7 @@ const styles = StyleSheet.create({
     },
     halfInput: {
         flex: 1,
-        marginBottom: 16,
+        marginBottom: 0,
     },
     imagePreviewContainer: {
         marginBottom: 20,
@@ -896,9 +1123,16 @@ const styles = StyleSheet.create({
     },
     imagePreview: {
         width: '100%',
-        height: 150,
-        borderRadius: 12,
+        height: 160,
+        borderRadius: 16,
         backgroundColor: '#F5F5F7',
+        borderWidth: 1,
+        borderColor: '#E5E5E7',
+        shadowColor: '#1C1C1E',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+        elevation: 3,
     },
     modalActions: {
         flexDirection: 'row',
@@ -915,7 +1149,16 @@ const styles = StyleSheet.create({
         backgroundColor: '#F5F5F7',
     },
     saveButton: {
-        backgroundColor: '#FF6B35',
+        backgroundColor: '#e36057ff',
+        shadowColor: '#e36057ff',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
     },
     modalButtonText: {
         fontSize: 16,
@@ -925,6 +1168,219 @@ const styles = StyleSheet.create({
     },
     cancelButtonText: {
         color: '#8E8E93',
+    },
+    // New styles for enhanced modal
+    inputGroup: {
+        marginBottom: 20,
+    },
+    inputLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#1C1C1E',
+        marginBottom: 8,
+        fontFamily: 'System',
+    },
+    categorySuggestions: {
+        marginBottom: 20,
+    },
+    suggestionLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#8E8E93',
+        marginBottom: 10,
+        fontFamily: 'System',
+    },
+    suggestionButtons: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    suggestionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F8F9FA',
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 22,
+        borderWidth: 1.5,
+        borderColor: '#E5E5E7',
+        marginBottom: 8,
+        shadowColor: '#1C1C1E',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    selectedSuggestionButton: {
+        backgroundColor: '#e36057ff',
+        borderColor: '#e36057ff',
+        shadowColor: '#e36057ff',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+        elevation: 4,
+        transform: [{ scale: 1.02 }],
+    },
+    suggestionButtonText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#2C2C2E',
+        marginLeft: 4,
+        fontFamily: 'System',
+    },
+    selectedSuggestionButtonText: {
+        color: '#FFFFFF',
+    },
+    imagePlaceholder: {
+        width: '100%',
+        height: 140,
+        backgroundColor: '#F8F9FA',
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#E5E5E7',
+        borderStyle: 'dashed',
+        marginBottom: 20,
+        shadowColor: '#1C1C1E',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    imagePlaceholderText: {
+        fontSize: 13,
+        color: '#8E8E93',
+        marginTop: 8,
+        fontFamily: 'System',
+        fontWeight: '500',
+    },
+    portionButtonsContainer: {
+        flexDirection: 'row',
+        gap: 6,
+        marginTop: 8,
+    },
+    portionButton: {
+        flex: 1,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: 10,
+        backgroundColor: '#F8F9FA',
+        borderWidth: 1.5,
+        borderColor: '#E5E5E7',
+        alignItems: 'center',
+        shadowColor: '#1C1C1E',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    selectedPortionButton: {
+        backgroundColor: '#e36057ff',
+        borderColor: '#e36057ff',
+        shadowColor: '#e36057ff',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+        elevation: 4,
+        transform: [{ scale: 1.02 }],
+    },
+    portionButtonText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#2C2C2E',
+        fontFamily: 'System',
+    },
+    selectedPortionButtonText: {
+        color: '#FFFFFF',
+    },
+    labelContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    requiredIndicator: {
+        fontSize: 14,
+        color: '#e36057ff',
+        fontWeight: '700',
+        marginLeft: 4,
+    },
+    // Category radio buttons
+    categoryRadioContainer: {
+        flexDirection: 'column',
+        gap: 8,
+    },
+    categoryRadioButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: '#F8F9FA',
+        borderWidth: 1,
+        borderColor: '#E5E5E7',
+    },
+    selectedCategoryRadioButton: {
+        backgroundColor: '#FFF8F5',
+        borderColor: '#e36057ff',
+    },
+    radioCircle: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        borderWidth: 2,
+        borderColor: '#E5E5E7',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+    },
+    selectedRadioCircle: {
+        borderColor: '#e36057ff',
+    },
+    radioDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#e36057ff',
+    },
+    categoryRadioText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#2C2C2E',
+        fontFamily: 'System',
+        marginLeft: 8,
+    },
+    selectedCategoryRadioText: {
+        color: '#e36057ff',
+        fontWeight: '600',
+    },
+    // Image upload styles
+    imageUploadButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        borderRadius: 12,
+        backgroundColor: '#F8F9FA',
+        borderWidth: 2,
+        borderColor: '#e36057ff',
+        borderStyle: 'dashed',
+        gap: 8,
+    },
+    imageUploadButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#e36057ff',
+        fontFamily: 'System',
+    },
+    imagePreviewWrapper: {
+        position: 'relative',
+    },
+    removeImageButton: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderRadius: 12,
     },
 });
 

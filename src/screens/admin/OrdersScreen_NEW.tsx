@@ -5,12 +5,12 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
+    Modal,
     Dimensions,
     NativeSyntheticEvent,
     NativeScrollEvent,
     TextInput,
     Alert,
-    Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTabBar } from '../../contexts/TabBarContext';
@@ -19,13 +19,15 @@ import { Order } from '../../types';
 const { width } = Dimensions.get('window');
 
 const AdminOrdersScreen: React.FC = () => {
+    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const [modalVisible, setModalVisible] = useState(false);
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const { setTabBarVisible } = useTabBar();
     const lastScrollY = useRef(0);
     const scrollThreshold = 10;
 
-    // Enhanced Mock data following README flow
+    // Mock data following README flow - Small Restaurant Orders
     const orders: Order[] = [
         {
             id: 'ORD_COD_1234567',
@@ -227,6 +229,7 @@ const AdminOrdersScreen: React.FC = () => {
         const matchesStatus = filterStatus === 'all' || order.status === filterStatus;
         const matchesSearch = order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
             order.customerAddress.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
             order.items.some(item =>
                 item.menuItem.name.toLowerCase().includes(searchQuery.toLowerCase())
             );
@@ -245,23 +248,35 @@ const AdminOrdersScreen: React.FC = () => {
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'PENDING': return '#FF6B35'; // Modern orange for new orders
-            case 'PREPARING': return '#4B79A1'; // Modern blue for preparation
-            case 'OUT_FOR_DELIVERY': return '#8854D0'; // Modern purple for delivery
-            case 'DELIVERED': return '#20BF6B'; // Modern green for completed
-            case 'CANCELLED': return '#FF4757'; // Modern red for cancelled
+            case 'PENDING': return '#FF9800'; // Orange for new orders
+            case 'PREPARING': return '#2196F3'; // Blue for preparation
+            case 'OUT_FOR_DELIVERY': return '#9C27B0'; // Purple for delivery
+            case 'DELIVERED': return '#4CAF50'; // Green for completed
+            case 'CANCELLED': return '#F44336'; // Red for cancelled
             default: return '#8E8E93';
         }
     };
 
-    const getStatusIcon = (status: string) => {
+    const getStatusDisplay = (status: string) => {
         switch (status) {
-            case 'PENDING': return 'time-outline';
-            case 'PREPARING': return 'restaurant-outline';
-            case 'OUT_FOR_DELIVERY': return 'bicycle-outline';
-            case 'DELIVERED': return 'checkmark-done-circle-outline';
-            case 'CANCELLED': return 'close-circle-outline';
-            default: return 'help-circle-outline';
+            case 'PENDING': return 'New Order';
+            case 'PREPARING': return 'Preparing';
+            case 'OUT_FOR_DELIVERY': return 'Out for Delivery';
+            case 'DELIVERED': return 'Delivered';
+            case 'CANCELLED': return 'Cancelled';
+            default: return status;
+        }
+    };
+
+    const getPaymentStatusColor = (paymentStatus: string, paymentMethod: string) => {
+        if (paymentMethod === 'COD') {
+            switch (paymentStatus) {
+                case 'PENDING': return '#FF9800'; // Orange for COD pending
+                case 'COLLECTED': return '#4CAF50'; // Green for cash collected
+                default: return '#8E8E93';
+            }
+        } else {
+            return paymentStatus === 'PAID' ? '#4CAF50' : '#FF9800';
         }
     };
 
@@ -328,23 +343,55 @@ const AdminOrdersScreen: React.FC = () => {
         );
     };
 
-    const getStatusDisplay = (status: string) => {
+    const getStatusIcon = (status: string) => {
         switch (status) {
-            case 'PENDING': return 'Pending';
-            case 'PREPARING': return 'Preparing';
-            case 'OUT_FOR_DELIVERY': return 'Out for Delivery';
-            case 'DELIVERED': return 'Delivered';
-            default: return status;
+            case 'PENDING': return 'time-outline';
+            case 'PREPARING': return 'restaurant-outline';
+            case 'OUT_FOR_DELIVERY': return 'bicycle-outline';
+            case 'DELIVERED': return 'checkmark-done-circle-outline';
+            case 'CANCELLED': return 'close-circle-outline';
+            default: return 'help-circle-outline';
         }
-    }; const getPaymentStatusColor = (paymentStatus: string, paymentMethod: string) => {
-        if (paymentMethod === 'COD') {
-            switch (paymentStatus) {
-                case 'PENDING': return '#FF9800'; // Orange for COD pending
-                case 'COLLECTED': return '#4CAF50'; // Green for cash collected
-                default: return '#8E8E93';
-            }
-        } else {
-            return paymentStatus === 'PAID' ? '#4CAF50' : '#FF9800';
+    };
+
+    const getActionButton = (order: Order) => {
+        switch (order.status) {
+            case 'PENDING':
+                return (
+                    <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: '#4CAF50' }]}
+                        onPress={() => handleAcceptAndPrepare(order.id)}
+                    >
+                        <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                        <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Accept & Prepare</Text>
+                    </TouchableOpacity>
+                );
+            case 'PREPARING':
+                return (
+                    <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: '#2196F3' }]}
+                        onPress={() => handleSendForDelivery(order.id)}
+                    >
+                        <Ionicons name="bicycle" size={16} color="#FFFFFF" />
+                        <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Send for Delivery</Text>
+                    </TouchableOpacity>
+                );
+            case 'OUT_FOR_DELIVERY':
+                return (
+                    <View style={[styles.actionButton, { backgroundColor: '#9C27B0' }]}>
+                        <Ionicons name="bicycle" size={16} color="#FFFFFF" />
+                        <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>With Ravi</Text>
+                    </View>
+                );
+            case 'DELIVERED':
+                return (
+                    <View style={[styles.actionButton, { backgroundColor: '#4CAF50' }]}>
+                        <Ionicons name="checkmark-done" size={16} color="#FFFFFF" />
+                        <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Completed</Text>
+                    </View>
+                );
+            default:
+                return null;
         }
     };
 
@@ -383,59 +430,19 @@ const AdminOrdersScreen: React.FC = () => {
     };
 
     const handleOrderPress = (order: Order) => {
-        // No modal needed - all info is already on the card
-        console.log('Order pressed:', order.id);
-    };
-
-    // Removed updateOrderStatus function as modal is no longer needed
-
-    const getActionButton = (order: Order) => {
-        switch (order.status) {
-            case 'PENDING':
-                return (
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.acceptButton]}
-                        onPress={() => handleAcceptAndPrepare(order.id)}
-                    >
-                        <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                        <Text style={styles.actionButtonText}>Accept & Prepare</Text>
-                    </TouchableOpacity>
-                );
-            case 'PREPARING':
-                return (
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.deliveryButton]}
-                        onPress={() => handleSendForDelivery(order.id)}
-                    >
-                        <Ionicons name="bicycle" size={16} color="#FFFFFF" />
-                        <Text style={styles.actionButtonText}>Send for Delivery</Text>
-                    </TouchableOpacity>
-                );
-            case 'OUT_FOR_DELIVERY':
-                return (
-                    <View style={[styles.actionButton, styles.infoButton]}>
-                        <Ionicons name="bicycle" size={16} color="#FFFFFF" />
-                        <Text style={styles.actionButtonText}>With Ravi</Text>
-                    </View>
-                );
-            case 'DELIVERED':
-                return (
-                    <View style={[styles.actionButton, styles.completedButton]}>
-                        <Ionicons name="checkmark-done" size={16} color="#FFFFFF" />
-                        <Text style={styles.actionButtonText}>Completed</Text>
-                    </View>
-                );
-            default:
-                return null;
-        }
+        setSelectedOrder(order);
+        setModalVisible(true);
     };
 
     const renderOrderCard = (order: Order) => (
         <TouchableOpacity
             key={order.id}
-            style={styles.orderCard}
+            style={[
+                styles.orderCard,
+                order.status === 'PENDING' && styles.pendingOrderCard,
+                order.paymentMethod === 'COD' && order.status === 'PENDING' && styles.codOrderCard
+            ]}
             onPress={() => handleOrderPress(order)}
-            activeOpacity={0.8}
         >
             {/* Order Header */}
             <View style={styles.orderHeader}>
@@ -455,7 +462,7 @@ const AdminOrdersScreen: React.FC = () => {
             <View style={styles.paymentRow}>
                 <View style={[
                     styles.paymentBadge,
-                    { backgroundColor: order.paymentMethod === 'COD' ? '#FF6B35' : '#20BF6B' }
+                    { backgroundColor: order.paymentMethod === 'COD' ? '#FF9800' : '#4CAF50' }
                 ]}>
                     <Ionicons
                         name={order.paymentMethod === 'COD' ? 'cash-outline' : 'card-outline'}
@@ -466,14 +473,13 @@ const AdminOrdersScreen: React.FC = () => {
                         {order.paymentMethod === 'COD' ? 'Cash on Delivery' : 'Paid Online'}
                     </Text>
                 </View>
-            </View>
 
-            {/* COD Alert - Separate row to prevent overflow */}
-            {order.paymentMethod === 'COD' && order.status === 'PENDING' && (
-                <View style={styles.codAlert}>
-                    <Text style={styles.codAlertText}>💰 Cash to Collect: ₹{order.cashToCollect}</Text>
-                </View>
-            )}
+                {order.paymentMethod === 'COD' && order.status === 'PENDING' && (
+                    <View style={styles.codAlert}>
+                        <Text style={styles.codAlertText}>💰 Collect: ₹{order.cashToCollect}</Text>
+                    </View>
+                )}
+            </View>
 
             {/* Customer Info */}
             <View style={styles.customerInfo}>
@@ -481,12 +487,10 @@ const AdminOrdersScreen: React.FC = () => {
                 <View style={styles.contactRow}>
                     <View style={styles.addressContainer}>
                         <Ionicons name="location-outline" size={14} color="#8E8E93" />
-                        <Text style={styles.orderAddress} numberOfLines={2}>
+                        <Text style={styles.orderAddress} numberOfLines={1}>
                             {order.customerAddress}
                         </Text>
                     </View>
-                </View>
-                <View style={[styles.contactRow, { marginTop: 4 }]}>
                     <View style={styles.phoneContainer}>
                         <Ionicons name="call-outline" size={14} color="#8E8E93" />
                         <Text style={styles.phoneText}>{order.customerPhone}</Text>
@@ -527,91 +531,168 @@ const AdminOrdersScreen: React.FC = () => {
                 </TouchableOpacity>
             )}
         </TouchableOpacity>
-    ); return (
+    );
+
+    const renderFilterButton = (status: string, label: string, count: number) => (
+        <TouchableOpacity
+            key={status}
+            style={[
+                styles.filterButton,
+                filterStatus === status && styles.activeFilterButton
+            ]}
+            onPress={() => setFilterStatus(status)}
+        >
+            <Text style={[
+                styles.filterButtonText,
+                filterStatus === status && styles.activeFilterButtonText
+            ]}>
+                {label} ({count})
+            </Text>
+        </TouchableOpacity>
+    );
+
+    return (
         <View style={styles.container}>
+            {/* Header */}
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>Orders Management</Text>
+                <Text style={styles.headerSubtitle}>Rajesh Da Dhaba</Text>
+            </View>
+
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+                <Ionicons name="search-outline" size={20} color="#8E8E93" />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search orders, customers, items..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholderTextColor="#8E8E93"
+                />
+                {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')}>
+                        <Ionicons name="close-circle" size={20} color="#8E8E93" />
+                    </TouchableOpacity>
+                )}
+            </View>
+
+            {/* Status Filters */}
             <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.filtersContainer}
+                contentContainerStyle={styles.filtersContent}
+            >
+                {renderFilterButton('all', 'All', statusStats.all)}
+                {renderFilterButton('PENDING', 'New Orders', statusStats.PENDING)}
+                {renderFilterButton('PREPARING', 'Preparing', statusStats.PREPARING)}
+                {renderFilterButton('OUT_FOR_DELIVERY', 'Out for Delivery', statusStats.OUT_FOR_DELIVERY)}
+                {renderFilterButton('DELIVERED', 'Delivered', statusStats.DELIVERED)}
+            </ScrollView>
+
+            {/* Orders List */}
+            <ScrollView
+                style={styles.ordersList}
                 showsVerticalScrollIndicator={false}
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
             >
-                {/* Simple Header like Customer OrdersScreen */}
-                <View style={styles.titleContainer}>
-                    <Text style={styles.title}>Order Management</Text>
-                </View>
+                {filteredOrders.length > 0 ? (
+                    filteredOrders.map(order => renderOrderCard(order))
+                ) : (
+                    <View style={styles.emptyState}>
+                        <Ionicons name="receipt-outline" size={64} color="#8E8E93" />
+                        <Text style={styles.emptyStateText}>No orders found</Text>
+                        <Text style={styles.emptyStateSubtext}>
+                            {searchQuery ? 'Try adjusting your search' : 'Orders will appear here when customers place them'}
+                        </Text>
+                    </View>
+                )}
+            </ScrollView>
 
-                {/* Search Bar */}
-                <View style={styles.searchContainer}>
-                    <Ionicons name="search" size={20} color="#8E8E93" />
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholder="Search orders"
-                        placeholderTextColor="#8E8E93"
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                    />
-                    <Image
-                        source={require('../../../assets/logo.png')}
-                        style={styles.searchLogo}
-                        resizeMode="contain"
-                    />
-                </View>
-
-                {/* Status Filter Tabs */}
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.filterContainer}
-                    contentContainerStyle={styles.filterContent}
-                >
-                    {Object.entries(statusStats).map(([status, count]) => (
+            {/* Order Details Modal */}
+            <Modal
+                visible={modalVisible}
+                animationType="slide"
+                presentationStyle="pageSheet"
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <View style={styles.modalContainer}>
+                    <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>Order Details</Text>
                         <TouchableOpacity
-                            key={status}
-                            style={[
-                                styles.filterTab,
-                                filterStatus === status && styles.activeFilterTab
-                            ]}
-                            onPress={() => setFilterStatus(status)}
+                            onPress={() => setModalVisible(false)}
+                            style={styles.modalCloseButton}
                         >
-                            <Text style={[
-                                styles.filterTabText,
-                                filterStatus === status && styles.activeFilterTabText
-                            ]}>
-                                {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
-                            </Text>
-                            <View style={[
-                                styles.filterTabBadge,
-                                filterStatus === status && styles.activeFilterTabBadge
-                            ]}>
-                                <Text style={[
-                                    styles.filterTabBadgeText,
-                                    filterStatus === status && styles.activeFilterTabBadgeText
-                                ]}>
-                                    {count}
+                            <Ionicons name="close" size={24} color="#000" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {selectedOrder && (
+                        <ScrollView style={styles.modalContent}>
+                            {/* Order Info */}
+                            <View style={styles.modalSection}>
+                                <Text style={styles.modalSectionTitle}>Order Information</Text>
+                                <Text style={styles.modalText}>Order ID: {selectedOrder.id}</Text>
+                                <Text style={styles.modalText}>Customer: {selectedOrder.customerName}</Text>
+                                <Text style={styles.modalText}>Phone: {selectedOrder.customerPhone}</Text>
+                                <Text style={styles.modalText}>Address: {selectedOrder.customerAddress}</Text>
+                                <Text style={styles.modalText}>
+                                    Payment: {selectedOrder.paymentMethod}
+                                    ({selectedOrder.paymentStatus})
                                 </Text>
                             </View>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
 
-                {/* Orders List */}
-                <View style={styles.ordersContainer}>
-                    <Text style={styles.sectionTitle}>
-                        {filteredOrders.length} Order{filteredOrders.length !== 1 ? 's' : ''} Found
-                    </Text>
+                            {/* Items */}
+                            <View style={styles.modalSection}>
+                                <Text style={styles.modalSectionTitle}>Items Ordered</Text>
+                                {selectedOrder.items.map((item, index) => (
+                                    <View key={index} style={styles.modalItemRow}>
+                                        <Text style={styles.modalItemName}>
+                                            {item.quantity}x {item.menuItem.name}
+                                        </Text>
+                                        <Text style={styles.modalItemPrice}>
+                                            ₹{(item.quantity * item.menuItem.price).toFixed(0)}
+                                        </Text>
+                                    </View>
+                                ))}
+                            </View>
 
-                    {filteredOrders.length === 0 ? (
-                        <View style={styles.emptyState}>
-                            <Ionicons name="receipt-outline" size={64} color="#8E8E93" />
-                            <Text style={styles.emptyStateTitle}>No Orders Found</Text>
-                            <Text style={styles.emptyStateText}>
-                                {searchQuery ? 'Try adjusting your search criteria' : 'No orders match the selected filter'}
-                            </Text>
-                        </View>
-                    ) : (
-                        filteredOrders.map(order => renderOrderCard(order))
+                            {/* Total */}
+                            <View style={styles.modalSection}>
+                                <Text style={styles.modalSectionTitle}>Order Summary</Text>
+                                <View style={styles.modalTotalRow}>
+                                    <Text style={styles.modalTotalLabel}>Total Amount:</Text>
+                                    <Text style={styles.modalTotalAmount}>₹{selectedOrder.total.toFixed(0)}</Text>
+                                </View>
+                                {selectedOrder.paymentMethod === 'COD' && (
+                                    <View style={styles.codSummary}>
+                                        <Text style={styles.codSummaryText}>
+                                            💰 Cash to Collect: ₹{selectedOrder.cashToCollect}
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
+
+                            {/* Actions */}
+                            <View style={styles.modalActions}>
+                                {getActionButton(selectedOrder)}
+                                {selectedOrder.status === 'PENDING' && (
+                                    <TouchableOpacity
+                                        style={[styles.modalActionButton, { backgroundColor: '#F44336' }]}
+                                        onPress={() => {
+                                            setModalVisible(false);
+                                            handleCancelOrder(selectedOrder.id, selectedOrder.paymentMethod);
+                                        }}
+                                    >
+                                        <Text style={styles.modalActionButtonText}>Cancel Order</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        </ScrollView>
                     )}
                 </View>
-            </ScrollView>
+            </Modal>
         </View>
     );
 };
@@ -621,429 +702,382 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#F8F9FA',
     },
-    titleContainer: {
+    header: {
+        backgroundColor: '#2C2C2E',
+        paddingTop: 50,
         paddingHorizontal: 20,
-        paddingTop: 60,
-        paddingBottom: 15,
+        paddingBottom: 20,
     },
-    title: {
-        fontSize: 22,
+    headerTitle: {
+        fontSize: 24,
         fontWeight: '700',
-        color: '#1C1C1E',
-        fontFamily: 'System',
-        textAlign: 'left',
+        color: '#FFFFFF',
+        marginBottom: 4,
+    },
+    headerSubtitle: {
+        fontSize: 16,
+        color: 'rgba(255, 255, 255, 0.8)',
     },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.98)',
+        backgroundColor: '#FFFFFF',
         marginHorizontal: 20,
-        marginTop: 10,
-        marginBottom: 20,
-        paddingHorizontal: 15,
-        paddingVertical: 2,
-        borderRadius: 25,
-        shadowColor: '#2C2C2E',
-        shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: 0.18,
-        shadowRadius: 10,
-        elevation: 6,
-        borderWidth: 1,
-        borderColor: '#F0F0F0',
-    },
-    searchLogo: {
-        width: 30,
-        height: 30,
-        marginLeft: 10,
+        marginTop: 20,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
     searchInput: {
         flex: 1,
-        marginLeft: 12,
-        fontSize: 15,
-        paddingVertical: 16,
-        fontFamily: 'System',
-        color: '#1C1C1E',
-        fontWeight: '500',
+        paddingVertical: 12,
+        paddingLeft: 12,
+        fontSize: 16,
+        color: '#2C2C2E',
     },
-    filterContainer: {
-        marginBottom: 20,
-        paddingVertical: 10,
+    filtersContainer: {
+        marginTop: 20,
     },
-    filterContent: {
+    filtersContent: {
         paddingHorizontal: 20,
+        paddingRight: 40,
     },
-    filterTab: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    filterButton: {
         backgroundColor: '#FFFFFF',
         paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingVertical: 10,
         borderRadius: 20,
         marginRight: 12,
-        shadowColor: '#000000',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    activeFilterButton: {
+        backgroundColor: '#2C2C2E',
+    },
+    filterButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#8E8E93',
+    },
+    activeFilterButtonText: {
+        color: '#FFFFFF',
+    },
+    ordersList: {
+        flex: 1,
+        paddingTop: 20,
+    },
+    orderCard: {
+        backgroundColor: '#FFFFFF',
+        marginHorizontal: 20,
+        marginBottom: 16,
+        borderRadius: 16,
+        padding: 16,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
-        shadowRadius: 6,
+        shadowRadius: 8,
         elevation: 4,
         borderWidth: 1,
         borderColor: '#F0F0F0',
     },
-    activeFilterTab: {
-        backgroundColor: '#e36057ff',
-        borderColor: '#e36057ff',
-        shadowColor: '#e36057ff',
-        shadowOpacity: 0.25,
-        elevation: 6,
+    pendingOrderCard: {
+        borderLeftWidth: 4,
+        borderLeftColor: '#FF9800',
     },
-    filterTabText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#2C2C2E',
-        fontFamily: 'System',
-        marginRight: 8,
-    },
-    activeFilterTabText: {
-        color: '#FFFFFF',
-        fontWeight: '800',
-    },
-    filterTabBadge: {
-        backgroundColor: '#F8F9FA',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 10,
-        minWidth: 20,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#E8E8E8',
-    },
-    activeFilterTabBadge: {
-        backgroundColor: '#FFFFFF',
-        borderColor: '#FFFFFF',
-    },
-    filterTabBadgeText: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#2C2C2E',
-        fontFamily: 'System',
-    },
-    activeFilterTabBadgeText: {
-        color: '#e36057ff',
-        fontWeight: '800',
-    },
-    ordersContainer: {
-        paddingHorizontal: 20,
-        paddingBottom: 100,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1C1C1E',
-        marginBottom: 16,
-    },
-    orderCard: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        padding: 18,
-        marginBottom: 16,
-        marginHorizontal: 4,
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-        elevation: 8,
+    codOrderCard: {
+        backgroundColor: '#FFF8F0',
+        borderColor: '#FFE0B2',
     },
     orderHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         marginBottom: 12,
-        paddingBottom: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
     },
     orderInfo: {
         flex: 1,
     },
     orderId: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: '700',
-        color: '#1C1C1E',
-        marginBottom: 2,
+        color: '#2C2C2E',
+        marginBottom: 4,
     },
     orderTime: {
-        fontSize: 13,
-        color: '#8E8E93',
-        fontWeight: '500',
-    },
-    statusBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    statusText: {
-        color: '#FFFFFF',
-        fontSize: 10,
-        fontWeight: '700',
-        marginLeft: 4,
-        letterSpacing: 0.3,
-    },
-    orderDetails: {
-        flexDirection: 'column',
-        marginBottom: 12,
-    },
-    orderItems: {
-        marginBottom: 12,
-    },
-    itemsTitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#1C1C1E',
-        marginBottom: 4,
-    },
-    itemText: {
-        fontSize: 13,
-        color: '#636366',
-        marginBottom: 3,
-        lineHeight: 18,
-        fontWeight: '500',
-    },
-    moreItems: {
-        fontSize: 13,
-        color: '#FF6B35',
-        fontWeight: '600',
-        marginTop: 4,
-        fontStyle: 'italic',
-    },
-    orderMeta: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-        paddingVertical: 8,
-        backgroundColor: '#F8F9FA',
-        paddingHorizontal: 12,
-        borderRadius: 8,
-    },
-    orderAmount: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#e36057ff',
-    },
-    contactInfo: {
-        flex: 1,
-        marginLeft: 16,
-    },
-    addressContainer: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        flex: 1,
-        marginBottom: 4,
-    },
-    orderAddress: {
-        fontSize: 12,
-        color: '#636366',
-        marginLeft: 4,
-        flex: 1,
-        lineHeight: 16,
-    },
-    phoneContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    orderPhone: {
-        fontSize: 12,
-        color: '#636366',
-        marginLeft: 4,
-    },
-    orderSummary: {
-        marginTop: 16,
-        paddingTop: 16,
-        borderTopWidth: 1,
-        borderTopColor: '#F0F0F0',
-    },
-    actionSection: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 12,
-        paddingTop: 12,
-        borderTopWidth: 1,
-        borderTopColor: '#F0F0F0',
-    },
-    actionButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 20,
-        flex: 1,
-        maxWidth: 140,
-        justifyContent: 'center',
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    assignButton: {
-        backgroundColor: '#4CAF50',
-    },
-    statusButton: {
-        backgroundColor: '#e36057ff',
-    },
-    callButton: {
-        backgroundColor: '#2196F3',
-    },
-    actionButtonText: {
-        color: '#FFFFFF',
-        fontSize: 11,
-        fontWeight: '700',
-        marginLeft: 6,
-        fontFamily: 'System',
-    },
-    emptyState: {
-        alignItems: 'center',
-        paddingVertical: 60,
-    },
-    emptyStateTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1C1C1E',
-        marginTop: 16,
-        marginBottom: 8,
-        fontFamily: 'System',
-    },
-    emptyStateText: {
         fontSize: 14,
         color: '#8E8E93',
-        textAlign: 'center',
-        fontFamily: 'System',
     },
     statusContainer: {
         alignItems: 'flex-end',
     },
+    statusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+    },
+    statusText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#FFFFFF',
+        marginLeft: 4,
+    },
     paymentRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         marginBottom: 12,
-        gap: 8,
     },
     paymentBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 10,
         paddingVertical: 6,
-        borderRadius: 16,
-        minWidth: 120,
-        justifyContent: 'center',
+        borderRadius: 12,
     },
     paymentText: {
+        fontSize: 12,
+        fontWeight: '600',
         color: '#FFFFFF',
-        fontSize: 11,
-        fontWeight: '700',
         marginLeft: 4,
-        fontFamily: 'System',
     },
     codAlert: {
-        backgroundColor: '#FFF3CD',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        backgroundColor: '#FF9800',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
         borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#FFE69C',
-        marginBottom: 12,
-        alignItems: 'center',
     },
     codAlertText: {
-        color: '#856404',
-        fontSize: 12,
-        fontWeight: '700',
-        fontFamily: 'System',
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#FFFFFF',
     },
     customerInfo: {
         marginBottom: 12,
-        backgroundColor: '#F8F9FA',
-        padding: 12,
-        borderRadius: 8,
     },
     customerName: {
         fontSize: 16,
-        fontWeight: '700',
-        color: '#1C1C1E',
-        fontFamily: 'System',
-        marginBottom: 8,
+        fontWeight: '600',
+        color: '#2C2C2E',
+        marginBottom: 6,
     },
     contactRow: {
-        gap: 12,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    addressContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        marginRight: 12,
+    },
+    orderAddress: {
+        fontSize: 12,
+        color: '#8E8E93',
+        marginLeft: 4,
+        flex: 1,
+    },
+    phoneContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     phoneText: {
         fontSize: 12,
         color: '#8E8E93',
         marginLeft: 4,
-        fontFamily: 'System',
-        fontWeight: '500',
+    },
+    orderDetails: {
+        marginBottom: 16,
+    },
+    itemsTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#2C2C2E',
+        marginBottom: 8,
+    },
+    itemText: {
+        fontSize: 12,
+        color: '#666666',
+        marginBottom: 2,
+    },
+    moreItems: {
+        fontSize: 12,
+        color: '#8E8E93',
+        fontStyle: 'italic',
     },
     orderFooter: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: 16,
-        paddingTop: 16,
-        borderTopWidth: 1,
-        borderTopColor: '#F0F0F0',
-        gap: 12,
+        marginBottom: 12,
     },
     totalContainer: {
-        flex: 1,
+        alignItems: 'flex-start',
     },
     totalLabel: {
         fontSize: 12,
         color: '#8E8E93',
-        fontFamily: 'System',
-        fontWeight: '500',
+        marginBottom: 2,
     },
     totalAmount: {
-        fontSize: 20,
-        fontWeight: '800',
-        color: '#FF6B35',
-        fontFamily: 'System',
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#2C2C2E',
+    },
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 12,
+    },
+    actionButtonText: {
+        fontSize: 13,
+        fontWeight: '600',
+        marginLeft: 6,
     },
     cancelButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 12,
+        justifyContent: 'center',
         paddingVertical: 8,
-        backgroundColor: '#FFF',
-        borderWidth: 1,
-        borderColor: '#FF4757',
-        borderRadius: 20,
-        marginTop: 12,
-        alignSelf: 'flex-start',
+        borderTopWidth: 1,
+        borderTopColor: '#F0F0F0',
+        marginTop: 8,
     },
     cancelButtonText: {
-        color: '#FF4757',
-        fontSize: 11,
-        fontWeight: '600',
+        fontSize: 12,
+        color: '#F44336',
         marginLeft: 4,
-        fontFamily: 'System',
     },
-    // Action button specific styles
-    acceptButton: {
-        backgroundColor: '#20BF6B',
-        borderRadius: 20,
+    emptyState: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 60,
     },
-    deliveryButton: {
-        backgroundColor: '#4B79A1',
-        borderRadius: 20,
+    emptyStateText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#2C2C2E',
+        marginTop: 16,
+        marginBottom: 8,
     },
-    infoButton: {
-        backgroundColor: '#8854D0',
-        borderRadius: 20,
+    emptyStateSubtext: {
+        fontSize: 14,
+        color: '#8E8E93',
+        textAlign: 'center',
+        paddingHorizontal: 40,
     },
-    completedButton: {
-        backgroundColor: '#26D0CE',
-        borderRadius: 20,
+    modalContainer: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingTop: 20,
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#2C2C2E',
+    },
+    modalCloseButton: {
+        padding: 8,
+    },
+    modalContent: {
+        flex: 1,
+    },
+    modalSection: {
+        padding: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    modalSectionTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#2C2C2E',
+        marginBottom: 12,
+    },
+    modalText: {
+        fontSize: 14,
+        color: '#666666',
+        marginBottom: 8,
+        lineHeight: 20,
+    },
+    modalItemRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F8F9FA',
+    },
+    modalItemName: {
+        fontSize: 14,
+        color: '#2C2C2E',
+        flex: 1,
+    },
+    modalItemPrice: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#2C2C2E',
+    },
+    modalTotalRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#F0F0F0',
+    },
+    modalTotalLabel: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#2C2C2E',
+    },
+    modalTotalAmount: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#2C2C2E',
+    },
+    codSummary: {
+        backgroundColor: '#FFF8F0',
+        padding: 12,
+        borderRadius: 8,
+        marginTop: 12,
+    },
+    codSummaryText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#FF9800',
+    },
+    modalActions: {
+        padding: 20,
+        gap: 12,
+    },
+    modalActionButton: {
+        alignItems: 'center',
+        paddingVertical: 14,
+        borderRadius: 12,
+    },
+    modalActionButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#FFFFFF',
     },
 });
 

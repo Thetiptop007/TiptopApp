@@ -19,6 +19,7 @@ export interface MenuItem {
     available: boolean;
     rating?: number;
     reviews?: number;
+    portion?: 'Quarter' | 'Half' | 'Full';
 }
 
 export interface CartItem {
@@ -32,10 +33,21 @@ export interface Order {
     customerId: string;
     items: CartItem[];
     total: number;
-    status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'picked_up' | 'delivered' | 'cancelled';
+    status: 'PENDING' | 'PREPARING' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED';
+    paymentStatus: 'PENDING' | 'PAID' | 'COLLECTED';
+    paymentMethod: 'ONLINE' | 'COD';
     deliveryPersonId?: string;
+    customerName: string;
     customerAddress: string;
     customerPhone: string;
+    codAmount?: number;
+    codHandlingFee?: number;
+    discount?: number;
+    deliveryFee?: number;
+    platformFee?: number;
+    cashToCollect?: number;
+    cashCollected?: number;
+    cashCollectionTime?: Date;
     createdAt: Date;
     updatedAt: Date;
 }

@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, NativeScrollEvent, NativeSyntheticEvent, Animated, Easing, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSwipeNavigation } from '../../contexts/SwipeNavigationContext';
-import { MenuItem } from '../../types';
-import { menuData, categories, restaurantInfo } from '../../data/menuData';
-import { useTabBar } from '../../contexts/TabBarContext';
+import { useSwipeNavigation } from '../../../contexts/SwipeNavigationContext';
+import { useCart } from '../../../contexts/CartContext';
+import { MenuItem } from '../../../types';
+import { menuData, categories, restaurantInfo } from '../../../data/menuData';
+import { useTabBar } from '../../../contexts/TabBarContext';
 
 const CustomerMenuScreen: React.FC = () => {
-    const { getTabParams } = useSwipeNavigation();
+    const { getTabParams, navigateToTab, navigateToOrder } = useSwipeNavigation();
+    const { addToCart, cartCount, cartItems, updateQuantity } = useCart();
     const params = getTabParams('Menu');
     const searchInputRef = useRef<TextInput>(null);
     const mainSearchInputRef = useRef<TextInput>(null);
@@ -15,7 +17,8 @@ const CustomerMenuScreen: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [showStickyHeader, setShowStickyHeader] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-    const [cartItemCount, setCartItemCount] = useState(0); // Cart item count state
+    const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+    const [itemAnimations, setItemAnimations] = useState<Record<string, Animated.Value>>({});
     const stickyHeaderAnimation = useRef(new Animated.Value(-150));
     const searchLogoShakeAnimation = useRef(new Animated.Value(0)); // For logo shake animation
     const searchLogoJumpAnimation = useRef(new Animated.Value(0)); // For logo jump animation
@@ -138,15 +141,73 @@ const CustomerMenuScreen: React.FC = () => {
             return matchesSearch && matchesCategory && item.available;
         });
 
-    const addToCart = (item: MenuItem) => {
-        console.log('Added to cart:', item.name);
-        setCartItemCount(prev => prev + 1); // Increment cart count
-        // Add haptic feedback or toast notification here
+    // Get quantity for an item from cart
+    const getItemQuantity = (itemId: string): number => {
+        const cartItem = cartItems.find(item => item.menuItem.id === itemId);
+        const quantity = cartItem ? cartItem.quantity : 0;
+        console.log('getItemQuantity for itemId:', itemId, 'found quantity:', quantity, 'cartItems:', cartItems.length);
+        return quantity;
     };
 
-    const toggleFavorite = (item: MenuItem) => {
-        console.log('Toggle favorite:', item.name);
-        // Add favorite logic here
+    // Initialize animations for cart items
+    React.useEffect(() => {
+        const newAnimations: { [key: string]: Animated.Value } = {};
+        menuItems.forEach((item: MenuItem) => {
+            const quantity = getItemQuantity(item.id);
+            newAnimations[item.id] = new Animated.Value(quantity > 0 ? 1 : 0);
+        });
+        setItemAnimations(newAnimations);
+    }, [cartItems]);
+
+    // Ultra-fast add button with immediate response (horizontal expansion)
+    const handleAddButtonPress = (item: MenuItem) => {
+        const quantity = getItemQuantity(item.id);
+        console.log('handleAddButtonPress called for item:', item.name, 'current quantity:', quantity);
+
+        if (quantity === 0) {
+            // IMMEDIATE cart update - no delay
+            addToCart(item);
+
+            // IMMEDIATE state update - user sees change instantly
+            setExpandedItems(prev => ({ ...prev, [item.id]: true }));
+
+            // Simple fade-in animation (optional and non-blocking)
+            const newAnimation = new Animated.Value(0);
+            setItemAnimations(prev => ({ ...prev, [item.id]: newAnimation }));
+
+            // Very fast animation that doesn't block UI
+            Animated.timing(newAnimation, {
+                toValue: 1,
+                duration: 150, // Much faster
+                useNativeDriver: true,
+                easing: Easing.out(Easing.quad),
+            }).start();
+        }
+    };
+
+    // Ultra-responsive quantity change with zero delay
+    const handleQuantityChange = (itemId: string, newQuantity: number) => {
+        console.log('handleQuantityChange called for item:', itemId, 'new quantity:', newQuantity);
+
+        if (newQuantity <= 0) {
+            // INSTANT cart update - user sees result immediately
+            updateQuantity(itemId, 0);
+            setExpandedItems(prev => ({ ...prev, [itemId]: false }));
+
+            // Clean up animation immediately - remove from state like HomeScreen
+            setItemAnimations(prev => {
+                const newAnimations = { ...prev };
+                delete newAnimations[itemId];
+                return newAnimations;
+            });
+        } else {
+            // INSTANT quantity update - no delay
+            updateQuantity(itemId, newQuantity);
+        }
+    };
+
+    const handleAddToCart = (item: MenuItem) => {
+        handleAddButtonPress(item);
     };
 
     const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -214,94 +275,149 @@ const CustomerMenuScreen: React.FC = () => {
         </TouchableOpacity>
     );
 
-    const renderListItem = ({ item }: { item: MenuItem }) => (
-        <View style={styles.listCard}>
-            <View style={styles.listImageContainer}>
-                {item.image ? (
-                    <Image
-                        source={{ uri: item.image }}
-                        style={styles.listImage}
-                        resizeMode="cover"
-                    />
-                ) : (
-                    <View style={styles.listImagePlaceholder}>
-                        <Ionicons name="restaurant" size={40} color="#8E8E93" />
-                    </View>
-                )}
-                <TouchableOpacity
-                    style={styles.favoriteButton}
-                    onPress={() => toggleFavorite(item)}
-                    activeOpacity={0.7}
-                >
-                    <Ionicons name="heart-outline" size={16} color="#e36057ff" />
-                </TouchableOpacity>
-                <View style={styles.ratingBadge}>
-                    <Ionicons name="star" size={10} color="#1C1C1E" />
-                    <Text style={styles.ratingBadgeText}>{item.rating}</Text>
-                </View>
-            </View>
-            <View style={styles.listInfo}>
-                <View style={styles.listHeader}>
-                    <Text style={styles.listName} numberOfLines={1}>{item.name}</Text>
-                    <TouchableOpacity
-                        style={styles.addButton}
-                        onPress={() => addToCart(item)}
-                        activeOpacity={0.8}
-                    >
-                        <Ionicons name="add" size={18} color="#FFFFFF" />
-                    </TouchableOpacity>
-                </View>
-                <Text style={styles.listDescription} numberOfLines={2}>{item.description}</Text>
-                <View style={styles.listFooter}>
-                    <Text style={styles.listPrice}>₹{item.price}</Text>
-                    <Text style={styles.reviewsText}>({item.reviews} reviews)</Text>
-                </View>
-            </View>
-        </View>
-    );
+    const renderListItem = React.useCallback(({ item }: { item: MenuItem }) => {
+        const quantity = getItemQuantity(item.id);
+        const isExpanded = quantity > 0;
+        const animation = itemAnimations[item.id] || new Animated.Value(isExpanded ? 1 : 0);
 
-    const renderGridItem = ({ item }: { item: MenuItem }) => (
-        <View style={styles.gridCard}>
-            <View style={styles.gridImageContainer}>
-                {item.image ? (
-                    <Image
-                        source={{ uri: item.image }}
-                        style={styles.gridImage}
-                        resizeMode="cover"
-                    />
-                ) : (
-                    <View style={styles.gridImagePlaceholder}>
-                        <Ionicons name="restaurant" size={40} color="#8E8E93" />
+        console.log('renderListItem for item:', item.name, 'quantity:', quantity, 'isExpanded:', isExpanded);
+
+        return (
+            <View style={styles.listCard}>
+                <View style={styles.listImageContainer}>
+                    {item.image ? (
+                        <Image
+                            source={{ uri: item.image }}
+                            style={styles.listImage}
+                            resizeMode="cover"
+                        />
+                    ) : (
+                        <View style={styles.listImagePlaceholder}>
+                            <Ionicons name="restaurant" size={40} color="#8E8E93" />
+                        </View>
+                    )}
+                </View>
+                <View style={styles.listInfo}>
+                    <View style={styles.listHeader}>
+                        <Text style={styles.listName} numberOfLines={1}>{item.name}</Text>
+
+                        {/* Animated Add Button or Quantity Controls */}
+                        {!isExpanded ? (
+                            <TouchableOpacity
+                                style={styles.addButton}
+                                onPress={() => handleAddButtonPress(item)}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="add" size={18} color="#FFFFFF" />
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={styles.horizontalQuantityContainer}>
+                                <TouchableOpacity
+                                    style={styles.horizontalQuantityButton}
+                                    onPress={() => handleQuantityChange(item.id, quantity - 1)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Ionicons name="remove" size={16} color="#e36057ff" />
+                                </TouchableOpacity>
+
+                                <Text style={styles.horizontalQuantity}>{quantity}</Text>
+
+                                <TouchableOpacity
+                                    style={styles.horizontalQuantityButton}
+                                    onPress={() => handleQuantityChange(item.id, quantity + 1)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Ionicons name="add" size={16} color="#e36057ff" />
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
-                )}
-                <TouchableOpacity
-                    style={styles.gridFavoriteButton}
-                    onPress={() => toggleFavorite(item)}
-                    activeOpacity={0.7}
-                >
-                    <Ionicons name="heart-outline" size={14} color="#e36057ff" />
-                </TouchableOpacity>
-                <View style={styles.ratingBadge}>
-                    <Ionicons name="star" size={10} color="#1C1C1E" />
-                    <Text style={styles.ratingBadgeText}>{item.rating}</Text>
+                    <Text style={styles.listDescription} numberOfLines={2}>{item.description}</Text>
+                    <View style={styles.listFooter}>
+                        <View style={styles.pricePortionContainer}>
+                            <Text style={styles.listPrice}>₹{item.price.toFixed(0)}</Text>
+                            {item.portion && (
+                                <View style={styles.portionBadge}>
+                                    <Text style={styles.portionText}>{item.portion}</Text>
+                                </View>
+                            )}
+                        </View>
+                    </View>
                 </View>
             </View>
-            <View style={styles.gridInfo}>
-                <Text style={styles.gridName} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.gridDescription} numberOfLines={2}>{item.description}</Text>
-                <View style={styles.gridFooter}>
-                    <Text style={styles.gridPrice}>₹{item.price}</Text>
-                    <TouchableOpacity
-                        style={styles.gridAddButton}
-                        onPress={() => addToCart(item)}
-                        activeOpacity={0.8}
-                    >
-                        <Ionicons name="add" size={16} color="#FFFFFF" />
-                    </TouchableOpacity>
+        );
+    }, [cartItems, itemAnimations, expandedItems]);
+
+    const renderGridItem = React.useCallback(({ item }: { item: MenuItem }) => {
+        const quantity = getItemQuantity(item.id);
+        const isExpanded = quantity > 0;
+        const animation = itemAnimations[item.id] || new Animated.Value(isExpanded ? 1 : 0);
+
+        console.log('renderGridItem for item:', item.name, 'quantity:', quantity, 'isExpanded:', isExpanded);
+
+        return (
+            <View style={styles.gridCard}>
+                <View style={styles.gridImageContainer}>
+                    {item.image ? (
+                        <Image
+                            source={{ uri: item.image }}
+                            style={styles.gridImage}
+                            resizeMode="cover"
+                        />
+                    ) : (
+                        <View style={styles.gridImagePlaceholder}>
+                            <Ionicons name="restaurant" size={40} color="#8E8E93" />
+                        </View>
+                    )}
+                </View>
+                <View style={styles.gridInfo}>
+                    <Text style={styles.gridName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.gridDescription} numberOfLines={2}>{item.description}</Text>
+                    <View style={styles.gridFooter}>
+                        <View style={styles.gridPricePortionContainer}>
+                            <Text style={styles.gridPrice}>₹{item.price.toFixed(0)}</Text>
+                            {item.portion && (
+                                <View style={styles.gridPortionBadge}>
+                                    <Text style={styles.gridPortionText}>{item.portion}</Text>
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Animated Add Button or Quantity Controls for Grid */}
+                        {!isExpanded ? (
+                            <TouchableOpacity
+                                style={styles.gridAddButton}
+                                onPress={() => handleAddButtonPress(item)}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="add" size={16} color="#FFFFFF" />
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={styles.gridHorizontalQuantityContainer}>
+                                <TouchableOpacity
+                                    style={styles.gridHorizontalQuantityButton}
+                                    onPress={() => handleQuantityChange(item.id, quantity - 1)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Ionicons name="remove" size={12} color="#e36057ff" />
+                                </TouchableOpacity>
+
+                                <Text style={styles.gridHorizontalQuantity}>{quantity}</Text>
+
+                                <TouchableOpacity
+                                    style={styles.gridHorizontalQuantityButton}
+                                    onPress={() => handleQuantityChange(item.id, quantity + 1)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Ionicons name="add" size={12} color="#e36057ff" />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
                 </View>
             </View>
-        </View>
-    );
+        );
+    }, [cartItems, itemAnimations, expandedItems]);
 
     return (
         <Animated.View style={[
@@ -333,19 +449,23 @@ const CustomerMenuScreen: React.FC = () => {
                                     onChangeText={setSearchQuery}
                                 />
                                 <Image
-                                    source={require('../../../assets/logo.png')}
+                                    source={require('../../../../assets/logo.png')}
                                     style={styles.stickyLogo}
                                     resizeMode="contain"
                                 />
                             </View>
 
                             {/* Sticky Cart Icon */}
-                            <TouchableOpacity style={styles.stickyCartButton} activeOpacity={0.7}>
+                            <TouchableOpacity
+                                style={styles.stickyCartButton}
+                                activeOpacity={0.7}
+                                onPress={() => navigateToOrder('Cart')}
+                            >
                                 <Ionicons name="bag-outline" size={24} color="#1C1C1E" />
-                                {cartItemCount > 0 && (
+                                {cartCount > 0 && (
                                     <View style={styles.cartBadge}>
                                         <Text style={styles.cartBadgeText}>
-                                            {cartItemCount > 99 ? '99+' : cartItemCount}
+                                            {cartCount > 99 ? '99+' : cartCount}
                                         </Text>
                                     </View>
                                 )}
@@ -358,6 +478,9 @@ const CustomerMenuScreen: React.FC = () => {
                     showsVerticalScrollIndicator={false}
                     onScroll={handleScroll}
                     scrollEventThrottle={16}
+                    nestedScrollEnabled={true}
+                    scrollEnabled={true}
+                    keyboardShouldPersistTaps="handled"
                     data={[1]}
                     renderItem={() => (
                         <View>
@@ -366,12 +489,16 @@ const CustomerMenuScreen: React.FC = () => {
                                 <Text style={styles.menuTitle}>Our Menu</Text>
 
                                 {/* Cart Icon */}
-                                <TouchableOpacity style={styles.cartButton} activeOpacity={0.7}>
+                                <TouchableOpacity
+                                    style={styles.cartButton}
+                                    activeOpacity={0.7}
+                                    onPress={() => navigateToOrder('Cart')}
+                                >
                                     <Ionicons name="bag-outline" size={24} color="#1C1C1E" />
-                                    {cartItemCount > 0 && (
+                                    {cartCount > 0 && (
                                         <View style={styles.cartBadge}>
                                             <Text style={styles.cartBadgeText}>
-                                                {cartItemCount > 99 ? '99+' : cartItemCount}
+                                                {cartCount > 99 ? '99+' : cartCount}
                                             </Text>
                                         </View>
                                     )}
@@ -390,7 +517,7 @@ const CustomerMenuScreen: React.FC = () => {
                                     onChangeText={setSearchQuery}
                                 />
                                 <Animated.Image
-                                    source={require('../../../assets/logo.png')}
+                                    source={require('../../../../assets/logo.png')}
                                     style={[
                                         styles.searchLogo,
                                         {
@@ -416,6 +543,9 @@ const CustomerMenuScreen: React.FC = () => {
                                 keyExtractor={(item) => item.name}
                                 horizontal
                                 showsHorizontalScrollIndicator={false}
+                                scrollEnabled={true}
+                                nestedScrollEnabled={true}
+                                keyboardShouldPersistTaps="handled"
                                 style={styles.categoriesContainer}
                                 contentContainerStyle={styles.categoriesContent}
                             />
@@ -600,6 +730,7 @@ const styles = StyleSheet.create({
     categoriesContainer: {
         marginBottom: 20,
         marginTop: 15,
+        flex: 0,
     },
     categoriesContent: {
         paddingHorizontal: 20,
@@ -873,6 +1004,112 @@ const styles = StyleSheet.create({
         fontFamily: 'System',
         textAlign: 'center',
         paddingHorizontal: 40,
+    },
+    // Horizontal quantity controls for list view
+    horizontalQuantityContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F8F9FA',
+        borderRadius: 20,
+        paddingVertical: 4,
+        paddingHorizontal: 6,
+        borderWidth: 1,
+        borderColor: '#E5E5E7',
+    },
+    horizontalQuantityButton: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#FFFFFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#2C2C2E',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    horizontalQuantity: {
+        paddingHorizontal: 12,
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1C1C1E',
+        fontFamily: 'System',
+        textAlign: 'center',
+        minWidth: 24,
+    },
+    // Horizontal quantity controls for grid view  
+    gridHorizontalQuantityContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F8F9FA',
+        borderRadius: 16,
+        paddingVertical: 3,
+        paddingHorizontal: 4,
+        borderWidth: 1,
+        borderColor: '#E5E5E7',
+    },
+    gridHorizontalQuantityButton: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: '#FFFFFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#2C2C2E',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    gridHorizontalQuantity: {
+        paddingHorizontal: 8,
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#1C1C1E',
+        fontFamily: 'System',
+        textAlign: 'center',
+        minWidth: 20,
+    },
+    // Price and portion styles for list view
+    pricePortionContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    portionBadge: {
+        backgroundColor: '#F0F8FF',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e36057ff',
+    },
+    portionText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: '#e36057ff',
+        fontFamily: 'System',
+    },
+    // Price and portion styles for grid view
+    gridPricePortionContainer: {
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        gap: 4,
+    },
+    gridPortionBadge: {
+        backgroundColor: '#F0F8FF',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#e36057ff',
+    },
+    gridPortionText: {
+        fontSize: 9,
+        fontWeight: '600',
+        color: '#e36057ff',
+        fontFamily: 'System',
     },
 });
 

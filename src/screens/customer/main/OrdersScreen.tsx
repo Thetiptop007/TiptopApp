@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Order, CartItem, MenuItem } from '../../types';
+import { Order, CartItem, MenuItem } from '../../../types';
 
 interface ExtendedOrder extends Order {
     estimatedTime?: number;
@@ -34,7 +34,10 @@ const CustomerOrdersScreen: React.FC = () => {
                 { id: 'cart2', menuItem: mockMenuItems[1], quantity: 1 }
             ],
             total: 29.97,
-            status: 'delivered',
+            status: 'DELIVERED',
+            paymentStatus: 'PAID',
+            paymentMethod: 'ONLINE',
+            customerName: 'John Doe',
             customerAddress: '123 Main St, Downtown',
             customerPhone: '+1234567890',
             createdAt: new Date('2024-01-15T10:30:00'),
@@ -49,7 +52,10 @@ const CustomerOrdersScreen: React.FC = () => {
                 { id: 'cart4', menuItem: mockMenuItems[3], quantity: 1 }
             ],
             total: 18.98,
-            status: 'preparing',
+            status: 'PREPARING',
+            paymentStatus: 'PAID',
+            paymentMethod: 'ONLINE',
+            customerName: 'John Doe',
             customerAddress: '123 Main St, Downtown',
             customerPhone: '+1234567890',
             createdAt: new Date('2024-01-16T12:00:00'),
@@ -65,7 +71,10 @@ const CustomerOrdersScreen: React.FC = () => {
                 { id: 'cart7', menuItem: mockMenuItems[6], quantity: 2 }
             ],
             total: 32.96,
-            status: 'cancelled',
+            status: 'CANCELLED',
+            paymentStatus: 'PENDING',
+            paymentMethod: 'COD',
+            customerName: 'John Doe',
             customerAddress: '123 Main St, Downtown',
             customerPhone: '+1234567890',
             createdAt: new Date('2024-01-14T09:00:00'),
@@ -79,7 +88,10 @@ const CustomerOrdersScreen: React.FC = () => {
                 { id: 'cart9', menuItem: mockMenuItems[8], quantity: 2 }
             ],
             total: 14.97,
-            status: 'ready',
+            status: 'OUT_FOR_DELIVERY',
+            paymentStatus: 'COLLECTED',
+            paymentMethod: 'COD',
+            customerName: 'John Doe',
             customerAddress: '123 Main St, Downtown',
             customerPhone: '+1234567890',
             createdAt: new Date('2024-01-17T14:30:00'),
@@ -90,19 +102,19 @@ const CustomerOrdersScreen: React.FC = () => {
 
     const getStatusInfo = (status: string) => {
         switch (status) {
-            case 'pending':
+            case 'PENDING':
                 return { color: '#FF9800', icon: 'time-outline', text: 'Order Placed' };
             case 'confirmed':
                 return { color: '#2196F3', icon: 'checkmark-circle-outline', text: 'Confirmed' };
-            case 'preparing':
+            case 'PREPARING':
                 return { color: '#e36057ff', icon: 'restaurant-outline', text: 'Preparing' };
             case 'ready':
                 return { color: '#4CAF50', icon: 'bag-check-outline', text: 'Ready for Pickup' };
-            case 'picked_up':
+            case 'OUT_FOR_DELIVERY':
                 return { color: '#9C27B0', icon: 'car-outline', text: 'Out for Delivery' };
-            case 'delivered':
+            case 'DELIVERED':
                 return { color: '#4CAF50', icon: 'checkmark-done-outline', text: 'Delivered' };
-            case 'cancelled':
+            case 'CANCELLED':
                 return { color: '#F44336', icon: 'close-circle-outline', text: 'Cancelled' };
             default:
                 return { color: '#8E8E93', icon: 'help-outline', text: 'Unknown' };
@@ -123,16 +135,16 @@ const CustomerOrdersScreen: React.FC = () => {
     };
 
     const currentOrders = orders.filter(order =>
-        order.status !== 'delivered' && order.status !== 'cancelled'
+        order.status !== 'DELIVERED' && order.status !== 'CANCELLED'
     );
 
     const pastOrders = orders.filter(order =>
-        order.status === 'delivered' || order.status === 'cancelled'
+        order.status === 'DELIVERED' || order.status === 'CANCELLED'
     );
 
     const renderOrderItem = ({ item }: { item: ExtendedOrder }) => {
         const statusInfo = getStatusInfo(item.status);
-        const isActive = item.status !== 'delivered' && item.status !== 'cancelled';
+        const isActive = item.status !== 'DELIVERED' && item.status !== 'CANCELLED';
 
         return (
             <TouchableOpacity style={styles.orderCard} activeOpacity={0.7}>
@@ -180,7 +192,7 @@ const CustomerOrdersScreen: React.FC = () => {
                 </View>
 
                 <View style={styles.orderActions}>
-                    {item.status === 'delivered' && (
+                    {item.status === 'DELIVERED' && (
                         <>
                             <TouchableOpacity style={styles.secondaryButton}>
                                 <Ionicons name="refresh-outline" size={16} color="#e36057ff" />
@@ -193,7 +205,7 @@ const CustomerOrdersScreen: React.FC = () => {
                         </>
                     )}
 
-                    {(item.status === 'pending' || item.status === 'confirmed') && (
+                    {item.status === 'PENDING' && (
                         <>
                             <TouchableOpacity style={styles.secondaryButton}>
                                 <Ionicons name="call-outline" size={16} color="#e36057ff" />
@@ -206,7 +218,7 @@ const CustomerOrdersScreen: React.FC = () => {
                         </>
                     )}
 
-                    {(item.status === 'preparing' || item.status === 'ready' || item.status === 'picked_up') && (
+                    {(item.status === 'PREPARING' || item.status === 'OUT_FOR_DELIVERY') && (
                         <>
                             <TouchableOpacity style={styles.secondaryButton}>
                                 <Ionicons name="call-outline" size={16} color="#e36057ff" />
@@ -219,7 +231,7 @@ const CustomerOrdersScreen: React.FC = () => {
                         </>
                     )}
 
-                    {item.status === 'cancelled' && (
+                    {item.status === 'CANCELLED' && (
                         <TouchableOpacity style={styles.primaryButton}>
                             <Ionicons name="refresh-outline" size={16} color="#FFFFFF" />
                             <Text style={styles.primaryButtonText}>Order Again</Text>

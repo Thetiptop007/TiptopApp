@@ -13,6 +13,7 @@ export const menuData: MenuItem[] = [
         available: true,
         rating: 4.3,
         reviews: 45,
+        portion: 'Half',
     },
     {
         id: 'chaap_2',
@@ -24,6 +25,7 @@ export const menuData: MenuItem[] = [
         available: true,
         rating: 4.5,
         reviews: 67,
+        portion: 'Full',
     },
     {
         id: 'chaap_3',
@@ -35,6 +37,7 @@ export const menuData: MenuItem[] = [
         available: true,
         rating: 4.4,
         reviews: 38,
+        portion: 'Quarter',
     },
     {
         id: 'chaap_4',

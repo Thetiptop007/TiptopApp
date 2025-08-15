@@ -11,7 +11,10 @@ const DeliveryAssignedScreen: React.FC = () => {
             customerId: 'cust1',
             items: [],
             total: 25.99,
-            status: 'ready',
+            status: 'PREPARING',
+            paymentStatus: 'COLLECTED',
+            paymentMethod: 'COD',
+            customerName: 'Alice Johnson',
             customerAddress: '123 Main St, Apt 4B',
             customerPhone: '+1234567890',
             createdAt: new Date(),
@@ -22,7 +25,10 @@ const DeliveryAssignedScreen: React.FC = () => {
             customerId: 'cust2',
             items: [],
             total: 18.50,
-            status: 'picked_up',
+            status: 'OUT_FOR_DELIVERY',
+            paymentStatus: 'PAID',
+            paymentMethod: 'ONLINE',
+            customerName: 'Bob Smith',
             customerAddress: '456 Oak Ave, House 12',
             customerPhone: '+1234567891',
             createdAt: new Date(),
@@ -44,9 +50,9 @@ const DeliveryAssignedScreen: React.FC = () => {
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'ready': return '#FF9800';
-            case 'picked_up': return '#2196F3';
-            case 'delivered': return '#4CAF50';
+            case 'PREPARING': return '#FF9800';
+            case 'OUT_FOR_DELIVERY': return '#2196F3';
+            case 'DELIVERED': return '#4CAF50';
             default: return '#666';
         }
     };
@@ -88,20 +94,20 @@ const DeliveryAssignedScreen: React.FC = () => {
                     <Text style={styles.actionButtonText}>Call</Text>
                 </TouchableOpacity>
 
-                {item.status === 'ready' && (
+                {item.status === 'PREPARING' && (
                     <TouchableOpacity
                         style={[styles.actionButton, { backgroundColor: '#FF9800' }]}
-                        onPress={() => updateOrderStatus(item.id, 'picked_up')}
+                        onPress={() => updateOrderStatus(item.id, 'OUT_FOR_DELIVERY')}
                     >
                         <Ionicons name="checkmark" size={16} color="#fff" />
                         <Text style={styles.actionButtonText}>Pick Up</Text>
                     </TouchableOpacity>
                 )}
 
-                {item.status === 'picked_up' && (
+                {item.status === 'OUT_FOR_DELIVERY' && (
                     <TouchableOpacity
                         style={[styles.actionButton, { backgroundColor: '#4CAF50' }]}
-                        onPress={() => updateOrderStatus(item.id, 'delivered')}
+                        onPress={() => updateOrderStatus(item.id, 'DELIVERED')}
                     >
                         <Ionicons name="checkmark-done" size={16} color="#fff" />
                         <Text style={styles.actionButtonText}>Delivered</Text>
@@ -112,7 +118,7 @@ const DeliveryAssignedScreen: React.FC = () => {
     );
 
     const activeOrders = assignedOrders.filter(order =>
-        order.status === 'ready' || order.status === 'picked_up'
+        order.status === 'PREPARING' || order.status === 'OUT_FOR_DELIVERY'
     );
 
     return (

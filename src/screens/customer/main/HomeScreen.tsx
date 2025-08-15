@@ -1,17 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, NativeScrollEvent, NativeSyntheticEvent, Animated, Easing, Dimensions, UIManager, Platform, InteractionManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSwipeNavigation } from '../../contexts/SwipeNavigationContext';
-import { MenuItem } from '../../types';
-import { menuData, categories, restaurantInfo } from '../../data/menuData';
-import { useTabBar } from '../../contexts/TabBarContext';
+import { useSwipeNavigation } from '../../../contexts/SwipeNavigationContext';
+import { useCart } from '../../../contexts/CartContext';
+import { MenuItem } from '../../../types';
+import { menuData, categories, restaurantInfo } from '../../../data/menuData';
+import { useTabBar } from '../../../contexts/TabBarContext';
 
 const CustomerHomeScreen: React.FC = () => {
-    const { navigateToTab } = useSwipeNavigation();
+    const { navigateToTab, navigateToOrder } = useSwipeNavigation();
+    const { addToCart, cartCount, cartItems, updateQuantity } = useCart();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [showStickySearch, setShowStickySearch] = useState(false);
-    const [cartItemCount, setCartItemCount] = useState(0); // Cart item count state
+    const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+    const [itemAnimations, setItemAnimations] = useState<Record<string, Animated.Value>>({});
     const stickySearchAnimation = useRef(new Animated.Value(-150)); // Start off-screen with more buffer
     const searchLogoShakeAnimation = useRef(new Animated.Value(0)); // For logo shake animation
     const searchLogoJumpAnimation = useRef(new Animated.Value(0)); // For logo jump animation
@@ -182,9 +185,68 @@ const CustomerHomeScreen: React.FC = () => {
         return matchesSearch && matchesCategory && item.available;
     });
 
-    const addToCart = (item: MenuItem) => {
-        console.log('Added to cart:', item.name);
-        setCartItemCount(prev => prev + 1); // Increment cart count
+    const handleAddToCart = (item: MenuItem) => {
+        addToCart(item);
+    };
+
+    // Get quantity for an item from cart
+    const getItemQuantity = (itemId: string): number => {
+        const cartItem = cartItems.find(item => item.menuItem.id === itemId);
+        return cartItem ? cartItem.quantity : 0;
+    };
+
+    // Get or create animation value for an item (optimized)
+    const getItemAnimation = (itemId: string): Animated.Value => {
+        if (!itemAnimations[itemId]) {
+            // Return a static value instead of creating new ones during render
+            const quantity = getItemQuantity(itemId);
+            return new Animated.Value(quantity > 0 ? 1 : 0);
+        }
+        return itemAnimations[itemId];
+    };
+
+    // Ultra-fast add button with immediate response
+    const handleAddButtonPress = (item: MenuItem) => {
+        const quantity = getItemQuantity(item.id);
+
+        if (quantity === 0) {
+            // IMMEDIATE cart update - no delay
+            addToCart(item);
+
+            // IMMEDIATE state update - user sees change instantly
+            setExpandedItems(prev => ({ ...prev, [item.id]: true }));
+
+            // Simple fade-in animation (optional and non-blocking)
+            const newAnimation = new Animated.Value(0);
+            setItemAnimations(prev => ({ ...prev, [item.id]: newAnimation }));
+
+            // Very fast animation that doesn't block UI
+            Animated.timing(newAnimation, {
+                toValue: 1,
+                duration: 150, // Much faster
+                useNativeDriver: true,
+                easing: Easing.out(Easing.quad),
+            }).start();
+        }
+    };
+
+    // Ultra-responsive quantity change with zero delay
+    const handleQuantityChange = (itemId: string, newQuantity: number) => {
+        if (newQuantity <= 0) {
+            // INSTANT cart update - user sees result immediately
+            updateQuantity(itemId, 0);
+            setExpandedItems(prev => ({ ...prev, [itemId]: false }));
+
+            // Clean up animation immediately
+            setItemAnimations(prev => {
+                const newAnimations = { ...prev };
+                delete newAnimations[itemId];
+                return newAnimations;
+            });
+        } else {
+            // INSTANT quantity update - no delay
+            updateQuantity(itemId, newQuantity);
+        }
     };
 
     const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -259,13 +321,9 @@ const CustomerHomeScreen: React.FC = () => {
             )}
             <View style={styles.featuredGradientOverlay}>
                 <View style={styles.featuredBadgeContainer}>
-                    <View style={styles.ratingBadge}>
-                        <Ionicons name="star" size={12} color="#1C1C1E" />
-                        <Text style={styles.ratingBadgeText}>{item.rating}</Text>
-                    </View>
                     <TouchableOpacity
                         style={styles.addToCartButton}
-                        onPress={() => addToCart(item)}
+                        onPress={() => handleAddToCart(item)}
                     >
                         <Ionicons name="add" size={18} color="#F9F9F9" />
                     </TouchableOpacity>
@@ -282,40 +340,75 @@ const CustomerHomeScreen: React.FC = () => {
         </View>
     );
 
-    const renderMenuItem = ({ item }: { item: MenuItem }) => (
-        <View style={styles.menuCard}>
-            <View style={styles.menuImageContainer}>
-                {item.image ? (
-                    <Image
-                        source={{ uri: item.image }}
-                        style={styles.menuImage}
-                        resizeMode="cover"
-                    />
-                ) : (
-                    <View style={styles.menuImagePlaceholder}>
-                        <Ionicons name="restaurant" size={40} color="#8E8E93" />
-                    </View>
-                )}
-            </View>
-            <View style={styles.menuInfo}>
-                <Text style={styles.menuName}>{item.name}</Text>
-                <Text style={styles.menuDescription} numberOfLines={2}>{item.description}</Text>
-                <View style={styles.ratingRow}>
-                    <View style={styles.ratingContainer}>
-                        <Ionicons name="star" size={12} color="#FFD700" />
-                        <Text style={styles.menuRatingText}>{item.rating} ({item.reviews})</Text>
+    const renderMenuItem = React.useCallback(({ item }: { item: MenuItem }) => {
+        const quantity = getItemQuantity(item.id);
+        const isExpanded = quantity > 0; // Simplified check
+        const animation = itemAnimations[item.id] || new Animated.Value(isExpanded ? 1 : 0);
+
+        return (
+            <View style={styles.menuCard}>
+                <View style={styles.menuImageContainer}>
+                    {item.image ? (
+                        <Image
+                            source={{ uri: item.image }}
+                            style={styles.menuImage}
+                            resizeMode="cover"
+                        />
+                    ) : (
+                        <View style={styles.menuImagePlaceholder}>
+                            <Ionicons name="restaurant" size={40} color="#8E8E93" />
+                        </View>
+                    )}
+                </View>
+                <View style={styles.menuInfo}>
+                    <Text style={styles.menuName}>{item.name}</Text>
+                    <Text style={styles.menuDescription} numberOfLines={2}>{item.description}</Text>
+                    <View style={styles.homePricePortionContainer}>
+                        <Text style={styles.menuPrice}>₹{item.price.toFixed(0)}</Text>
+                        {item.portion && (
+                            <View style={styles.homePortionBadge}>
+                                <Text style={styles.homePortionText}>{item.portion}</Text>
+                            </View>
+                        )}
                     </View>
                 </View>
-                <Text style={styles.menuPrice}>₹{item.price.toFixed(0)}</Text>
+
+                <View style={styles.buttonContainer}>
+                    {!isExpanded ? (
+                        <TouchableOpacity
+                            style={styles.addButton}
+                            onPress={() => handleAddButtonPress(item)}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="add" size={20} color="#F9F9F9" />
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={styles.quantityControlsContainer}>
+                            <View style={styles.homeQuantityControls}>
+                                <TouchableOpacity
+                                    style={styles.homeQuantityButton}
+                                    onPress={() => handleQuantityChange(item.id, quantity - 1)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Ionicons name="remove" size={14} color="#e36057ff" />
+                                </TouchableOpacity>
+
+                                <Text style={styles.homeQuantity}>{quantity}</Text>
+
+                                <TouchableOpacity
+                                    style={styles.homeQuantityButton}
+                                    onPress={() => handleQuantityChange(item.id, quantity + 1)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Ionicons name="add" size={14} color="#e36057ff" />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+                </View>
             </View>
-            <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => addToCart(item)}
-            >
-                <Ionicons name="add" size={20} color="#F9F9F9" />
-            </TouchableOpacity>
-        </View>
-    );
+        );
+    }, [cartItems]); // Simplified dependencies
 
     return (
         <View style={styles.container}>
@@ -348,7 +441,7 @@ const CustomerHomeScreen: React.FC = () => {
                                     <Text style={styles.stickySearchPlaceholder}>Search delicious food...</Text>
                                 </View>
                                 <Image
-                                    source={require('../../../assets/logo.png')}
+                                    source={require('../../../../assets/logo.png')}
                                     style={styles.stickyLogo}
                                     resizeMode="contain"
                                 />
@@ -356,12 +449,16 @@ const CustomerHomeScreen: React.FC = () => {
                         </Animated.View>
 
                         {/* Sticky Cart Icon */}
-                        <TouchableOpacity style={styles.stickyCartButton} activeOpacity={0.7}>
+                        <TouchableOpacity
+                            style={styles.stickyCartButton}
+                            onPress={() => navigateToOrder('Cart')}
+                            activeOpacity={0.7}
+                        >
                             <Ionicons name="bag-outline" size={24} color="#1C1C1E" />
-                            {cartItemCount > 0 && (
+                            {cartCount > 0 && (
                                 <View style={styles.cartBadge}>
                                     <Text style={styles.cartBadgeText}>
-                                        {cartItemCount > 99 ? '99+' : cartItemCount}
+                                        {cartCount > 99 ? '99+' : cartCount}
                                     </Text>
                                 </View>
                             )}
@@ -395,6 +492,9 @@ const CustomerHomeScreen: React.FC = () => {
                         showsHorizontalScrollIndicator={false}
                         style={styles.stickyCategoriesContainer}
                         contentContainerStyle={styles.stickyCategoriesContent}
+                        scrollEnabled={true}
+                        nestedScrollEnabled={true}
+                        keyboardShouldPersistTaps="handled"
                     />
                 </Animated.View>
             )}
@@ -404,6 +504,9 @@ const CustomerHomeScreen: React.FC = () => {
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
                 data={[1]} // Dummy data to render once
+                scrollEnabled={true}
+                nestedScrollEnabled={true}
+                keyboardShouldPersistTaps="handled"
                 renderItem={() => (
                     <View>
                         {/* Header with Background Image */}
@@ -417,19 +520,23 @@ const CustomerHomeScreen: React.FC = () => {
                                 <View style={styles.header}>
                                     <View style={styles.headerLogoContainer}>
                                         <Image
-                                            source={require('../../../assets/logo-full.png')}
+                                            source={require('../../../../assets/logo-full.png')}
                                             style={styles.headerLogo}
                                             resizeMode="contain"
                                         />
                                     </View>
 
                                     {/* Cart Icon */}
-                                    <TouchableOpacity style={styles.cartButton} activeOpacity={0.7}>
+                                    <TouchableOpacity
+                                        style={styles.cartButton}
+                                        onPress={() => navigateToOrder('Cart')}
+                                        activeOpacity={0.7}
+                                    >
                                         <Ionicons name="bag-outline" size={24} color="#FFFFFF" />
-                                        {cartItemCount > 0 && (
+                                        {cartCount > 0 && (
                                             <View style={styles.cartBadge}>
                                                 <Text style={styles.cartBadgeText}>
-                                                    {cartItemCount > 99 ? '99+' : cartItemCount}
+                                                    {cartCount > 99 ? '99+' : cartCount}
                                                 </Text>
                                             </View>
                                         )}
@@ -470,7 +577,7 @@ const CustomerHomeScreen: React.FC = () => {
                                             }}
                                         >
                                             <Image
-                                                source={require('../../../assets/logo.png')}
+                                                source={require('../../../../assets/logo.png')}
                                                 style={styles.searchLogo}
                                                 resizeMode="contain"
                                             />
@@ -489,6 +596,9 @@ const CustomerHomeScreen: React.FC = () => {
                             showsHorizontalScrollIndicator={false}
                             style={styles.categoriesContainer}
                             contentContainerStyle={styles.categoriesContent}
+                            scrollEnabled={true}
+                            nestedScrollEnabled={true}
+                            keyboardShouldPersistTaps="handled"
                         />
 
                         {/* Popular Items Section */}
@@ -510,6 +620,9 @@ const CustomerHomeScreen: React.FC = () => {
                             decelerationRate="fast"
                             snapToInterval={296}
                             snapToAlignment="start"
+                            scrollEnabled={true}
+                            nestedScrollEnabled={true}
+                            keyboardShouldPersistTaps="handled"
                         />
 
                         {/* Delicious Items Section */}
@@ -981,14 +1094,15 @@ const styles = StyleSheet.create({
     menuCard: {
         flexDirection: 'row',
         backgroundColor: '#FAFAFA',
-        padding: 12,
-        borderRadius: 10,
-        alignItems: 'center',
+        padding: 16,
+        borderRadius: 12,
+        alignItems: 'flex-start', // Changed to flex-start to align image to top
         shadowColor: '#2C2C2E',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.06,
         shadowRadius: 3,
         elevation: 1,
+        minHeight: 85,
     },
     menuImageContainer: {
         width: 65,
@@ -1012,6 +1126,11 @@ const styles = StyleSheet.create({
     menuInfo: {
         flex: 1,
     },
+    buttonContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        alignSelf: 'center',
+    },
     menuName: {
         fontSize: 16,
         fontWeight: '600',
@@ -1027,7 +1146,7 @@ const styles = StyleSheet.create({
         fontFamily: 'System',
     },
     ratingRow: {
-        marginBottom: 4,
+        marginBottom: 2,
     },
     menuRatingText: {
         color: '#8E8E93',
@@ -1044,11 +1163,16 @@ const styles = StyleSheet.create({
     },
     addButton: {
         backgroundColor: '#e36057ff',
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         justifyContent: 'center',
         alignItems: 'center',
+        shadowColor: '#e36057ff',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 3,
     },
     stickyCategoriesContainer: {
         paddingTop: 15,
@@ -1086,6 +1210,65 @@ const styles = StyleSheet.create({
     selectedStickyCategoryText: {
         color: '#e36057ff',
         fontWeight: '600',
+        fontFamily: 'System',
+    },
+    quantityControlsContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    homeQuantityControls: {
+        flexDirection: 'column',
+        alignItems: 'center',
+        backgroundColor: '#F8F9FA',
+        borderRadius: 20,
+        paddingVertical: 6,
+        paddingHorizontal: 8,
+        borderWidth: 1,
+        borderColor: '#E5E5E7',
+    },
+    homeQuantityButton: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#FFFFFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#2C2C2E',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+        marginVertical: 3,
+    },
+    homeQuantity: {
+        paddingVertical: 6,
+        paddingHorizontal: 2,
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1C1C1E',
+        fontFamily: 'System',
+        textAlign: 'center',
+        minWidth: 24,
+    },
+    // Price and portion styles for HomeScreen
+    homePricePortionContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 4,
+    },
+    homePortionBadge: {
+        backgroundColor: '#F0F8FF',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e36057ff',
+    },
+    homePortionText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: '#e36057ff',
         fontFamily: 'System',
     },
 });

@@ -2,9 +2,13 @@ import React, { createContext, useContext, ReactNode, useState } from 'react';
 
 interface SwipeNavigationContextType {
     navigateToTab: (tabName: string, params?: any) => void;
+    navigateToOrder: (screen: 'Cart' | 'Payment' | 'OrderConfirmation' | 'OrderTracking', params?: any) => void;
+    goBackToTab: () => void;
     currentTab: string;
     currentIndex: number;
     getTabParams: (tabName: string) => any;
+    isOrderScreenVisible: boolean;
+    currentOrderScreen: string | null;
 }
 
 const SwipeNavigationContext = createContext<SwipeNavigationContextType | undefined>(undefined);
@@ -23,12 +27,34 @@ export const SwipeNavigationProvider: React.FC<SwipeNavigationProviderProps> = (
     currentIndex,
 }) => {
     const [tabParams, setTabParams] = useState<Record<string, any>>({});
+    const [isOrderScreenVisible, setIsOrderScreenVisible] = useState(false);
+    const [currentOrderScreen, setCurrentOrderScreen] = useState<string | null>(null);
+    const [previousTab, setPreviousTab] = useState<string>(currentTab);
 
     const enhancedNavigateToTab = (tabName: string, params?: any) => {
         if (params) {
             setTabParams(prev => ({ ...prev, [tabName]: params }));
         }
+        setIsOrderScreenVisible(false);
+        setCurrentOrderScreen(null);
         navigateToTab(tabName, params);
+    };
+
+    const navigateToOrder = (screen: 'Cart' | 'Payment' | 'OrderConfirmation' | 'OrderTracking', params?: any) => {
+        setPreviousTab(currentTab);
+        setCurrentOrderScreen(screen);
+        setIsOrderScreenVisible(true);
+        if (params) {
+            setTabParams(prev => ({ ...prev, Order: { screen, ...params } }));
+        } else {
+            setTabParams(prev => ({ ...prev, Order: { screen } }));
+        }
+    };
+
+    const goBackToTab = () => {
+        setIsOrderScreenVisible(false);
+        setCurrentOrderScreen(null);
+        navigateToTab(previousTab);
     };
 
     const getTabParams = (tabName: string) => {
@@ -38,9 +64,13 @@ export const SwipeNavigationProvider: React.FC<SwipeNavigationProviderProps> = (
     return (
         <SwipeNavigationContext.Provider value={{
             navigateToTab: enhancedNavigateToTab,
+            navigateToOrder,
+            goBackToTab,
             currentTab,
             currentIndex,
-            getTabParams
+            getTabParams,
+            isOrderScreenVisible,
+            currentOrderScreen
         }}>
             {children}
         </SwipeNavigationContext.Provider>
