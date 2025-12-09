@@ -1,127 +1,165 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Order, CartItem, MenuItem } from '../../../types';
+import { useSwipeNavigation } from '../../../contexts/SwipeNavigationContext';
+import { useCart } from '../../../contexts/CartContext';
+import { orderAPI } from '../../../api/order.api';
+import { useAuth } from '../../../contexts/AuthContext';
 
 interface ExtendedOrder extends Order {
     estimatedTime?: number;
 }
 
 const CustomerOrdersScreen: React.FC = () => {
+    const { navigateToOrder } = useSwipeNavigation();
+    const { cartCount } = useCart();
+    const { isAuthenticated } = useAuth();
     const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
-    const [cartItemCount, setCartItemCount] = useState(3); // Cart item count state - showing some items by default
+    const [currentOrders, setCurrentOrders] = useState<ExtendedOrder[]>([]);
+    const [pastOrders, setPastOrders] = useState<ExtendedOrder[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Mock menu items for order data
-    const mockMenuItems: MenuItem[] = [
-        { id: 'item1', name: 'Butter Chicken', description: 'Creamy tomato curry', price: 12.99, category: 'Non-Veg', available: true, rating: 4.5, reviews: 120 },
-        { id: 'item2', name: 'Garlic Naan', description: 'Freshly baked bread', price: 3.99, category: 'Bread', available: true, rating: 4.3, reviews: 85 },
-        { id: 'item3', name: 'Chicken Biryani', description: 'Aromatic rice dish', price: 15.99, category: 'Biryani', available: true, rating: 4.7, reviews: 200 },
-        { id: 'item4', name: 'Raita', description: 'Yogurt side dish', price: 2.99, category: 'Sides', available: true, rating: 4.2, reviews: 45 },
-        { id: 'item5', name: 'Paneer Tikka', description: 'Grilled cottage cheese', price: 14.99, category: 'Veg', available: true, rating: 4.4, reviews: 95 },
-        { id: 'item6', name: 'Dal Makhani', description: 'Creamy lentil curry', price: 9.99, category: 'Veg', available: true, rating: 4.6, reviews: 110 },
-        { id: 'item7', name: 'Basmati Rice', description: 'Fragrant long grain rice', price: 3.99, category: 'Rice', available: true, rating: 4.1, reviews: 30 },
-        { id: 'item8', name: 'Masala Dosa', description: 'South Indian crepe', price: 8.99, category: 'South Indian', available: true, rating: 4.5, reviews: 75 },
-        { id: 'item9', name: 'Filter Coffee', description: 'Traditional South Indian coffee', price: 2.99, category: 'Beverages', available: true, rating: 4.3, reviews: 60 },
-    ];
+    // Fetch orders from backend
+    const fetchOrders = async (isRefreshing = false) => {
+        if (!isAuthenticated) {
+            setLoading(false);
+            return;
+        }
 
-    // Mock order data with proper CartItem structure
-    const [orders] = useState<ExtendedOrder[]>([
-        {
-            id: '1234',
-            customerId: 'cust1',
-            items: [
-                { id: 'cart1', menuItem: mockMenuItems[0], quantity: 2 },
-                { id: 'cart2', menuItem: mockMenuItems[1], quantity: 1 }
-            ],
-            total: 29.97,
-            status: 'DELIVERED',
-            paymentStatus: 'PAID',
-            paymentMethod: 'ONLINE',
-            customerName: 'John Doe',
-            customerAddress: '123 Main St, Downtown',
-            customerPhone: '+1234567890',
-            createdAt: new Date('2024-01-15T10:30:00'),
-            updatedAt: new Date('2024-01-15T11:30:00'),
-            estimatedTime: 25,
-        },
-        {
-            id: '1235',
-            customerId: 'cust1',
-            items: [
-                { id: 'cart3', menuItem: mockMenuItems[2], quantity: 1 },
-                { id: 'cart4', menuItem: mockMenuItems[3], quantity: 1 }
-            ],
-            total: 18.98,
-            status: 'PREPARING',
-            paymentStatus: 'PAID',
-            paymentMethod: 'ONLINE',
-            customerName: 'John Doe',
-            customerAddress: '123 Main St, Downtown',
-            customerPhone: '+1234567890',
-            createdAt: new Date('2024-01-16T12:00:00'),
-            updatedAt: new Date('2024-01-16T12:15:00'),
-            estimatedTime: 20,
-        },
-        {
-            id: '1236',
-            customerId: 'cust1',
-            items: [
-                { id: 'cart5', menuItem: mockMenuItems[4], quantity: 1 },
-                { id: 'cart6', menuItem: mockMenuItems[5], quantity: 1 },
-                { id: 'cart7', menuItem: mockMenuItems[6], quantity: 2 }
-            ],
-            total: 32.96,
-            status: 'CANCELLED',
-            paymentStatus: 'PENDING',
-            paymentMethod: 'COD',
-            customerName: 'John Doe',
-            customerAddress: '123 Main St, Downtown',
-            customerPhone: '+1234567890',
-            createdAt: new Date('2024-01-14T09:00:00'),
-            updatedAt: new Date('2024-01-14T09:30:00'),
-        },
-        {
-            id: '1237',
-            customerId: 'cust1',
-            items: [
-                { id: 'cart8', menuItem: mockMenuItems[7], quantity: 1 },
-                { id: 'cart9', menuItem: mockMenuItems[8], quantity: 2 }
-            ],
-            total: 14.97,
-            status: 'OUT_FOR_DELIVERY',
-            paymentStatus: 'COLLECTED',
-            paymentMethod: 'COD',
-            customerName: 'John Doe',
-            customerAddress: '123 Main St, Downtown',
-            customerPhone: '+1234567890',
-            createdAt: new Date('2024-01-17T14:30:00'),
-            updatedAt: new Date('2024-01-17T15:00:00'),
-            estimatedTime: 5,
-        },
-    ]);
+        try {
+            if (!isRefreshing) setLoading(true);
+            setError(null);
+
+            // Calculate date 7 days ago
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            const startDate = sevenDaysAgo.toISOString();
+
+            // Fetch orders from last 7 days
+            const currentResponse = await orderAPI.getMyOrders({
+                'createdAt[gte]': startDate,
+                limit: 50,
+                sort: '-createdAt',
+            });
+
+            console.log('\n========== ORDERS FETCHED FROM BACKEND ==========');
+            console.log('Total Orders Retrieved:', currentResponse.data.orders.length);
+            
+            // Separate current and history orders
+            const current = currentResponse.data.orders.filter(
+                (order: any) => !['DELIVERED', 'CANCELLED', 'COMPLETED'].includes(order.status)
+            );
+            const history = currentResponse.data.orders.filter(
+                (order: any) => ['DELIVERED', 'COMPLETED'].includes(order.status)
+            );
+
+            console.log('\nCurrent Orders:', current.length);
+            console.log('History Orders:', history.length);
+            
+            // Log detailed info for each order
+            console.log('\n--- CURRENT ORDERS DETAILS ---');
+            current.forEach((order: any, idx: number) => {
+                console.log(`\nOrder ${idx + 1}:`);
+                console.log('  Order Number:', order.orderNumber);
+                console.log('  Status:', order.status);
+                console.log('  Created:', order.createdAt);
+                console.log('  Items:', order.items?.map((item: any) => `${item.quantity}x ${item.name} @ ₹${item.price} = ₹${item.subtotal}`));
+                console.log('  Pricing:', {
+                    itemsTotal: order.pricing?.itemsTotal,
+                    deliveryFee: order.pricing?.deliveryFee,
+                    gst: order.pricing?.gst,
+                    discount: order.pricing?.discount,
+                    finalAmount: order.pricing?.finalAmount
+                });
+            });
+            
+            if (history.length > 0) {
+                console.log('\n--- HISTORY ORDERS DETAILS ---');
+                history.forEach((order: any, idx: number) => {
+                    console.log(`Order ${idx + 1}: ${order.orderNumber} - ₹${order.pricing?.finalAmount}`);
+                });
+            }
+            console.log('\n===============================================\n');
+
+            setCurrentOrders(current);
+            setPastOrders(history);
+        } catch (err: any) {
+            console.error('Error fetching orders:', err);
+            setError(err.message || 'Failed to load orders');
+        } finally {
+            setLoading(false);
+            if (isRefreshing) setRefreshing(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchOrders();
+    }, [isAuthenticated]);
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchOrders(true);
+    };
+
+    const handleCancelOrder = (orderId: string, orderNumber: string) => {
+        Alert.alert(
+            'Cancel Order',
+            `Are you sure you want to cancel order #${orderNumber}?`,
+            [
+                {
+                    text: 'No',
+                    style: 'cancel',
+                },
+                {
+                    text: 'Yes, Cancel',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await orderAPI.cancelOrder(orderId);
+                            Alert.alert('Success', 'Order cancelled successfully');
+                            // Refresh orders
+                            fetchOrders();
+                        } catch (error: any) {
+                            Alert.alert(
+                                'Error',
+                                error.response?.data?.message || 'Failed to cancel order'
+                            );
+                        }
+                    },
+                },
+            ]
+        );
+    };
 
     const getStatusInfo = (status: string) => {
         switch (status) {
             case 'PENDING':
-                return { color: '#FF9800', icon: 'time-outline', text: 'Order Placed' };
-            case 'confirmed':
-                return { color: '#2196F3', icon: 'checkmark-circle-outline', text: 'Confirmed' };
-            case 'PREPARING':
-                return { color: '#e36057ff', icon: 'restaurant-outline', text: 'Preparing' };
-            case 'ready':
-                return { color: '#4CAF50', icon: 'bag-check-outline', text: 'Ready for Pickup' };
+                return { color: '#2196F3', icon: 'checkmark-circle-outline', text: 'Order Confirmed' };
+            case 'READY':
+                return { color: '#FF9800', icon: 'checkmark-outline', text: 'Ready for Pickup' };
             case 'OUT_FOR_DELIVERY':
-                return { color: '#9C27B0', icon: 'car-outline', text: 'Out for Delivery' };
+                return { color: '#9C27B0', icon: 'car-outline', text: 'On the Way' };
             case 'DELIVERED':
                 return { color: '#4CAF50', icon: 'checkmark-done-outline', text: 'Delivered' };
             case 'CANCELLED':
                 return { color: '#F44336', icon: 'close-circle-outline', text: 'Cancelled' };
             default:
-                return { color: '#8E8E93', icon: 'help-outline', text: 'Unknown' };
+                return { color: '#8E8E93', icon: 'help-outline', text: status || 'Unknown' };
         }
     };
 
-    const formatDate = (date: Date) => {
+    const formatDate = (dateInput: Date | string) => {
+        // Convert to Date object if it's a string
+        const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+        
+        // Check if date is valid
+        if (!date || isNaN(date.getTime())) {
+            return 'Invalid date';
+        }
+
         const now = new Date();
         const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
 
@@ -134,23 +172,49 @@ const CustomerOrdersScreen: React.FC = () => {
         }
     };
 
-    const currentOrders = orders.filter(order =>
-        order.status !== 'DELIVERED' && order.status !== 'CANCELLED'
-    );
-
-    const pastOrders = orders.filter(order =>
-        order.status === 'DELIVERED' || order.status === 'CANCELLED'
-    );
-
-    const renderOrderItem = ({ item }: { item: ExtendedOrder }) => {
+    const renderOrderItem = ({ item }: { item: any }) => {
         const statusInfo = getStatusInfo(item.status);
-        const isActive = item.status !== 'DELIVERED' && item.status !== 'CANCELLED';
+        const isActive = !['DELIVERED', 'CANCELLED'].includes(item.status);
+        const orderItems = item.items || [];
+        
+        // Extract pricing details from backend Order model structure
+        const pricing = item.pricing || {};
+        const itemsTotal = pricing.itemsTotal || 0;
+        const deliveryFee = pricing.deliveryFee || 0;
+        const platformFee = pricing.platformFee || 0;
+        const packagingFee = pricing.packagingFee || 0;
+        const gst = pricing.gst || 0;
+        const discount = pricing.discount || 0;
+        const finalAmount = pricing.finalAmount || 0;
+
+        console.log('\n========== RENDERING ORDER CARD ==========');
+        console.log('Order Number:', item.orderNumber);
+        console.log('Status:', item.status);
+        console.log('\nItems:', orderItems.map((oi: any) => ({
+            name: oi.name,
+            quantity: oi.quantity,
+            price: oi.price,
+            subtotal: oi.subtotal,
+            calculatedSubtotal: oi.price * oi.quantity
+        })));
+        console.log('\nPricing Breakdown:');
+        console.log('  Items Total:', itemsTotal);
+        console.log('  Delivery Fee:', deliveryFee);
+        console.log('  Platform Fee:', platformFee);
+        console.log('  Packaging Fee:', packagingFee);
+        console.log('  GST:', gst);
+        console.log('  Discount:', discount);
+        console.log('  FINAL AMOUNT:', finalAmount);
+        console.log('========================================\n');
+
+        // Check if there are any extra charges
+        const hasExtraCharges = deliveryFee > 0 || platformFee > 0 || packagingFee > 0 || gst > 0 || discount > 0;
 
         return (
             <TouchableOpacity style={styles.orderCard} activeOpacity={0.7}>
                 <View style={styles.orderHeader}>
                     <View style={styles.orderIdContainer}>
-                        <Text style={styles.orderId}>#{item.id}</Text>
+                        <Text style={styles.orderId}>#{item.orderNumber || 'N/A'}</Text>
                         <Text style={styles.orderDate}>{formatDate(item.createdAt)}</Text>
                     </View>
                     <View style={[styles.statusBadge, { backgroundColor: statusInfo.color }]}>
@@ -160,81 +224,109 @@ const CustomerOrdersScreen: React.FC = () => {
                 </View>
 
                 <View style={styles.orderContent}>
+                    {/* Items List */}
                     <View style={styles.itemsContainer}>
                         <Text style={styles.itemsLabel}>Items:</Text>
-                        {item.items.slice(0, 2).map((cartItem, index) => (
-                            <Text key={index} style={styles.itemText}>
-                                {cartItem.quantity}x {cartItem.menuItem.name}
-                            </Text>
-                        ))}
-                        {item.items.length > 2 && (
-                            <Text style={styles.moreItems}>
-                                +{item.items.length - 2} more items
-                            </Text>
-                        )}
-                    </View>
-
-                    <View style={styles.orderDetails}>
-                        <View style={styles.priceContainer}>
-                            <Text style={styles.totalLabel}>Total</Text>
-                            <Text style={styles.totalAmount}>₹{item.total.toFixed(2)}</Text>
-                        </View>
-
-                        {isActive && item.estimatedTime && (
-                            <View style={styles.estimatedTimeContainer}>
-                                <Ionicons name="time-outline" size={14} color="#e36057ff" />
-                                <Text style={styles.estimatedTime}>
-                                    {item.estimatedTime} min remaining
+                        {orderItems.map((orderItem: any, index: number) => (
+                            <View key={index} style={styles.itemRow}>
+                                <Text style={styles.itemText}>
+                                    {orderItem.quantity}x {orderItem.name}
+                                </Text>
+                                <Text style={styles.itemPrice}>
+                                    ₹{orderItem.subtotal?.toFixed(2) || (orderItem.price * orderItem.quantity).toFixed(2)}
                                 </Text>
                             </View>
-                        )}
+                        ))}
                     </View>
+
+                    {/* Price Breakdown */}
+                    <View style={styles.pricingBreakdown}>
+                        <View style={styles.pricingRow}>
+                            <Text style={styles.pricingLabel}>Items Total</Text>
+                            <Text style={styles.pricingValue}>₹{itemsTotal.toFixed(2)}</Text>
+                        </View>
+
+                        {hasExtraCharges && (
+                            <>
+                                {deliveryFee > 0 && (
+                                    <View style={styles.pricingRow}>
+                                        <Text style={styles.pricingLabel}>Delivery Fee</Text>
+                                        <Text style={styles.pricingValue}>₹{deliveryFee.toFixed(2)}</Text>
+                                    </View>
+                                )}
+                                {platformFee > 0 && (
+                                    <View style={styles.pricingRow}>
+                                        <Text style={styles.pricingLabel}>Platform Fee</Text>
+                                        <Text style={styles.pricingValue}>₹{platformFee.toFixed(2)}</Text>
+                                    </View>
+                                )}
+                                {packagingFee > 0 && (
+                                    <View style={styles.pricingRow}>
+                                        <Text style={styles.pricingLabel}>Packaging Fee</Text>
+                                        <Text style={styles.pricingValue}>₹{packagingFee.toFixed(2)}</Text>
+                                    </View>
+                                )}
+                                {gst > 0 && (
+                                    <View style={styles.pricingRow}>
+                                        <Text style={styles.pricingLabel}>GST</Text>
+                                        <Text style={styles.pricingValue}>₹{gst.toFixed(2)}</Text>
+                                    </View>
+                                )}
+                                {discount > 0 && (
+                                    <View style={styles.pricingRow}>
+                                        <Text style={[styles.pricingLabel, { color: '#4CAF50' }]}>Discount</Text>
+                                        <Text style={[styles.pricingValue, { color: '#4CAF50' }]}>-₹{discount.toFixed(2)}</Text>
+                                    </View>
+                                )}
+                            </>
+                        )}
+
+                        <View style={styles.divider} />
+                        
+                        <View style={styles.totalRow}>
+                            <Text style={styles.totalLabel}>Total Amount</Text>
+                            <Text style={styles.totalAmount}>₹{finalAmount.toFixed(2)}</Text>
+                        </View>
+                    </View>
+
+                    {isActive && item.estimatedDeliveryTime && (
+                        <View style={styles.estimatedTimeContainer}>
+                            <Ionicons name="time-outline" size={14} color="#e36057ff" />
+                            <Text style={styles.estimatedTime}>
+                                Est. {new Date(item.estimatedDeliveryTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </Text>
+                        </View>
+                    )}
                 </View>
 
-                <View style={styles.orderActions}>
-                    {item.status === 'DELIVERED' && (
-                        <>
-                            <TouchableOpacity style={styles.secondaryButton}>
-                                <Ionicons name="refresh-outline" size={16} color="#e36057ff" />
-                                <Text style={styles.secondaryButtonText}>Reorder</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.primaryButton}>
-                                <Ionicons name="star-outline" size={16} color="#FFFFFF" />
-                                <Text style={styles.primaryButtonText}>Rate</Text>
-                            </TouchableOpacity>
-                        </>
+                {/* Payment & Delivery Info */}
+                <View style={styles.orderFooter}>
+                    <View style={styles.paymentInfo}>
+                        <Ionicons 
+                            name={item.paymentMethod === 'COD' ? 'cash-outline' : 'card-outline'} 
+                            size={14} 
+                            color="#8E8E93" 
+                        />
+                        <Text style={styles.paymentText}>
+                            {item.paymentMethod} {item.paymentStatus === 'PAID' ? '(Paid)' : ''}
+                        </Text>
+                    </View>
+                    
+                    {item.deliveryAddress && (
+                        <Text style={styles.addressText} numberOfLines={1}>
+                            📍 {item.deliveryAddress.street}, {item.deliveryAddress.city}
+                        </Text>
                     )}
-
+                    
+                    {/* Cancel Button - Only for PENDING status */}
                     {item.status === 'PENDING' && (
-                        <>
-                            <TouchableOpacity style={styles.secondaryButton}>
-                                <Ionicons name="call-outline" size={16} color="#e36057ff" />
-                                <Text style={styles.secondaryButtonText}>Call</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={[styles.primaryButton, { backgroundColor: '#F44336' }]}>
-                                <Ionicons name="close-outline" size={16} color="#FFFFFF" />
-                                <Text style={styles.primaryButtonText}>Cancel</Text>
-                            </TouchableOpacity>
-                        </>
-                    )}
-
-                    {(item.status === 'PREPARING' || item.status === 'OUT_FOR_DELIVERY') && (
-                        <>
-                            <TouchableOpacity style={styles.secondaryButton}>
-                                <Ionicons name="call-outline" size={16} color="#e36057ff" />
-                                <Text style={styles.secondaryButtonText}>Call</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.primaryButton}>
-                                <Ionicons name="location-outline" size={16} color="#FFFFFF" />
-                                <Text style={styles.primaryButtonText}>Track</Text>
-                            </TouchableOpacity>
-                        </>
-                    )}
-
-                    {item.status === 'CANCELLED' && (
-                        <TouchableOpacity style={styles.primaryButton}>
-                            <Ionicons name="refresh-outline" size={16} color="#FFFFFF" />
-                            <Text style={styles.primaryButtonText}>Order Again</Text>
+                        <TouchableOpacity 
+                            style={styles.cancelButton}
+                            onPress={() => handleCancelOrder(item._id, item.orderNumber)}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="close-circle-outline" size={16} color="#F44336" />
+                            <Text style={styles.cancelButtonText}>Cancel Order</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -268,12 +360,16 @@ const CustomerOrdersScreen: React.FC = () => {
                 <Text style={styles.title}>My Orders</Text>
 
                 {/* Cart Icon */}
-                <TouchableOpacity style={styles.cartButton} activeOpacity={0.7}>
+                <TouchableOpacity 
+                    style={styles.cartButton} 
+                    activeOpacity={0.7}
+                    onPress={() => navigateToOrder('Cart')}
+                >
                     <Ionicons name="bag-outline" size={24} color="#1C1C1E" />
-                    {cartItemCount > 0 && (
+                    {cartCount > 0 && (
                         <View style={styles.cartBadge}>
                             <Text style={styles.cartBadgeText}>
-                                {cartItemCount > 99 ? '99+' : cartItemCount}
+                                {cartCount > 99 ? '99+' : cartCount}
                             </Text>
                         </View>
                     )}
@@ -303,14 +399,42 @@ const CustomerOrdersScreen: React.FC = () => {
             </View>
 
             {/* Orders List */}
-            <FlatList
-                data={activeTab === 'current' ? currentOrders : pastOrders}
-                renderItem={renderOrderItem}
-                keyExtractor={(item) => `${activeTab}-${item.id}`}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.ordersList}
-                ListEmptyComponent={() => renderEmptyState(activeTab)}
-            />
+            {loading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#e36057ff" />
+                    <Text style={styles.loadingText}>Loading orders...</Text>
+                </View>
+            ) : error ? (
+                <View style={styles.errorContainer}>
+                    <Ionicons name="alert-circle-outline" size={48} color="#FF3B30" />
+                    <Text style={styles.errorText}>{error}</Text>
+                    <TouchableOpacity style={styles.retryButton} onPress={() => fetchOrders()}>
+                        <Text style={styles.retryButtonText}>Retry</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : !isAuthenticated ? (
+                <View style={styles.emptyContainer}>
+                    <Ionicons name="person-outline" size={64} color="#8E8E93" />
+                    <Text style={styles.emptyTitle}>Login Required</Text>
+                    <Text style={styles.emptySubtitle}>Please login to view your orders</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={activeTab === 'current' ? currentOrders : pastOrders}
+                    renderItem={renderOrderItem}
+                    keyExtractor={(item) => `${activeTab}-${item.id}`}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.ordersList}
+                    ListEmptyComponent={() => renderEmptyState(activeTab)}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            tintColor="#e36057ff"
+                        />
+                    }
+                />
+            )}
         </View>
     );
 };
@@ -455,11 +579,23 @@ const styles = StyleSheet.create({
         marginBottom: 4,
         textTransform: 'uppercase',
     },
+    itemRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
     itemText: {
         fontSize: 13,
         color: '#1C1C1E',
         fontFamily: 'System',
-        marginBottom: 2,
+        flex: 1,
+    },
+    itemPrice: {
+        fontSize: 13,
+        color: '#1C1C1E',
+        fontFamily: 'System',
+        fontWeight: '600',
     },
     moreItems: {
         fontSize: 12,
@@ -467,6 +603,39 @@ const styles = StyleSheet.create({
         fontFamily: 'System',
         fontWeight: '500',
         fontStyle: 'italic',
+    },
+    pricingBreakdown: {
+        backgroundColor: '#F8F9FA',
+        padding: 12,
+        borderRadius: 12,
+        marginTop: 8,
+    },
+    pricingRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6,
+    },
+    pricingLabel: {
+        fontSize: 12,
+        color: '#8E8E93',
+        fontFamily: 'System',
+    },
+    pricingValue: {
+        fontSize: 12,
+        color: '#1C1C1E',
+        fontFamily: 'System',
+        fontWeight: '600',
+    },
+    divider: {
+        height: 1,
+        backgroundColor: '#E0E0E0',
+        marginVertical: 8,
+    },
+    totalRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     orderDetails: {
         flexDirection: 'row',
@@ -477,10 +646,10 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
     },
     totalLabel: {
-        fontSize: 12,
-        color: '#8E8E93',
+        fontSize: 13,
+        color: '#1C1C1E',
         fontFamily: 'System',
-        fontWeight: '500',
+        fontWeight: '700',
     },
     totalAmount: {
         fontSize: 16,
@@ -542,6 +711,47 @@ const styles = StyleSheet.create({
         marginLeft: 6,
         fontFamily: 'System',
     },
+    orderFooter: {
+        flexDirection: 'column',
+        gap: 8,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#F0F0F0',
+    },
+    paymentInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    paymentText: {
+        fontSize: 12,
+        color: '#8E8E93',
+        fontFamily: 'System',
+    },
+    addressText: {
+        fontSize: 12,
+        color: '#8E8E93',
+        fontFamily: 'System',
+    },
+    cancelButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFEBEE',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        marginTop: 8,
+        borderWidth: 1,
+        borderColor: '#FFCDD2',
+    },
+    cancelButtonText: {
+        fontSize: 12,
+        color: '#F44336',
+        fontFamily: 'System',
+        fontWeight: '600',
+        marginLeft: 4,
+    },
     emptyContainer: {
         alignItems: 'center',
         justifyContent: 'center',
@@ -563,6 +773,45 @@ const styles = StyleSheet.create({
         fontFamily: 'System',
         textAlign: 'center',
         lineHeight: 20,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 80,
+    },
+    loadingText: {
+        fontSize: 14,
+        color: '#8E8E93',
+        marginTop: 12,
+        fontFamily: 'System',
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 80,
+        paddingHorizontal: 40,
+    },
+    errorText: {
+        fontSize: 14,
+        color: '#8E8E93',
+        marginTop: 12,
+        marginBottom: 20,
+        textAlign: 'center',
+        fontFamily: 'System',
+    },
+    retryButton: {
+        backgroundColor: '#e36057ff',
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 25,
+    },
+    retryButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '600',
+        fontFamily: 'System',
     },
 });
 

@@ -17,15 +17,18 @@ export const DeliverySwipeNavigationProvider: React.FC<DeliverySwipeNavigationPr
     children,
     navigateToTab,
 }) => {
-    // Store for tab parameters
-    const tabParamsStore = React.useRef<{ [key: string]: any }>({});
+    // Store for tab parameters - using state for reactivity
+    const [tabParamsStore, setTabParamsStore] = React.useState<{ [key: string]: any }>({});
 
     const setTabParams = (tabName: string, params: any) => {
-        tabParamsStore.current[tabName] = params;
+        setTabParamsStore(prev => ({
+            ...prev,
+            [tabName]: params
+        }));
     };
 
     const getTabParams = (tabName: string) => {
-        return tabParamsStore.current[tabName] || {};
+        return tabParamsStore[tabName] || {};
     };
 
     const handleNavigateToTab = (tabName: string, params?: any) => {

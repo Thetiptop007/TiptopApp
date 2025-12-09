@@ -1,31 +1,30 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, NativeScrollEvent, NativeSyntheticEvent, Animated, Easing, Dimensions, UIManager, Platform, InteractionManager } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, NativeScrollEvent, NativeSyntheticEvent, Animated, Easing, Dimensions, UIManager, Platform, InteractionManager, Modal, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import ItemDetailScreen from './ItemDetailScreen';
 import { useSwipeNavigation } from '../../../contexts/SwipeNavigationContext';
 import { useCart } from '../../../contexts/CartContext';
 import { MenuItem } from '../../../types';
 import { menuData, categories, restaurantInfo } from '../../../data/menuData';
 import { useTabBar } from '../../../contexts/TabBarContext';
+import { authAPI } from '../../../api/auth.api';
+import { adaptBackendMenuItems } from '../../../utils/menuAdapter';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const CustomerHomeScreen: React.FC = () => {
     const { navigateToTab, navigateToOrder } = useSwipeNavigation();
     const { addToCart, cartCount, cartItems, updateQuantity } = useCart();
-    const [searchQuery, setSearchQuery] = useState('');
+    const { isAuthenticated } = useAuth();
     const [selectedCategory, setSelectedCategory] = useState('All');
-    const [showStickySearch, setShowStickySearch] = useState(false);
-    const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
-    const [itemAnimations, setItemAnimations] = useState<Record<string, Animated.Value>>({});
-    const stickySearchAnimation = useRef(new Animated.Value(-150)); // Start off-screen with more buffer
-    const searchLogoShakeAnimation = useRef(new Animated.Value(0)); // For logo shake animation
-    const searchLogoJumpAnimation = useRef(new Animated.Value(0)); // For logo jump animation
-    const searchPressAnimation = useRef(new Animated.Value(1)); // For search press animation
-    const stickySearchPressAnimation = useRef(new Animated.Value(1)); // For sticky search press animation
+    const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+    const [frequentlyOrdered, setFrequentlyOrdered] = useState<MenuItem[]>([]);
+    const [loadingFrequent, setLoadingFrequent] = useState(false);
     const slideAnimation = useRef(new Animated.Value(0)); // For screen slide animation
     const screenWidth = Dimensions.get('window').width;
     const { setTabBarVisible } = useTabBar();
     const lastScrollY = useRef(0);
     const scrollThreshold = 10; // Minimum scroll distance to trigger hide/show
-    const headerHeight = 220; // Height of the header
+    const headerHeight = 150; // Height of the header (reduced without search bar)
 
     // Enable LayoutAnimation on Android
     useEffect(() => {
@@ -34,235 +33,56 @@ const CustomerHomeScreen: React.FC = () => {
         }
     }, []);
 
-    // Custom navigation function with smooth right-to-left slide animation
-    const navigateToMenu = () => {
-        // Add a press animation first
-        Animated.spring(searchPressAnimation.current, {
-            toValue: 0.95,
-            useNativeDriver: true,
-            tension: 100,
-            friction: 3,
-        }).start(() => {
-            Animated.spring(searchPressAnimation.current, {
-                toValue: 1,
-                useNativeDriver: true,
-                tension: 100,
-                friction: 3,
-            }).start();
-        });
-
-        // Small delay for smooth transition feel
-        InteractionManager.runAfterInteractions(() => {
-            setTimeout(() => {
-                navigateToTab('Menu', {
-                    searchQuery: searchQuery,
-                    fromSearch: true
-                });
-            }, 150);
-        });
-    };    // Search press animation
-    const handleSearchPressIn = () => {
-        Animated.spring(searchPressAnimation.current, {
-            toValue: 0.98,
-            useNativeDriver: true,
-            tension: 300,
-            friction: 20,
-        }).start();
-    };
-
-    const handleSearchPressOut = () => {
-        Animated.spring(searchPressAnimation.current, {
-            toValue: 1,
-            useNativeDriver: true,
-            tension: 300,
-            friction: 20,
-        }).start();
-    };
-
-    // Sticky search press animation
-    const handleStickySearchPressIn = () => {
-        Animated.spring(stickySearchPressAnimation.current, {
-            toValue: 0.98,
-            useNativeDriver: true,
-            tension: 300,
-            friction: 20,
-        }).start();
-    };
-
-    const handleStickySearchPressOut = () => {
-        Animated.spring(stickySearchPressAnimation.current, {
-            toValue: 1,
-            useNativeDriver: true,
-            tension: 300,
-            friction: 20,
-        }).start();
-    };
-
-    // Smooth animation effect similar to CustomTabBar
+    // Fetch frequently ordered items only when authenticated
     useEffect(() => {
-        Animated.timing(stickySearchAnimation.current, {
-            toValue: showStickySearch ? 0 : -150,
-            duration: 300,
-            easing: Easing.bezier(0.25, 0.46, 0.45, 0.94), // Same smooth easing as CustomTabBar
-            useNativeDriver: true,
-        }).start();
-    }, [showStickySearch]);
+        if (!isAuthenticated) {
+            setFrequentlyOrdered([]);
+            setLoadingFrequent(false);
+            return;
+        }
 
-    // Logo shake and jump animation effect
-    useEffect(() => {
-        const startShakeAndJumpAnimation = () => {
-            Animated.parallel([
-                // Shake animation (rotation)
-                Animated.sequence([
-                    Animated.timing(searchLogoShakeAnimation.current, {
-                        toValue: -5,
-                        duration: 100,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(searchLogoShakeAnimation.current, {
-                        toValue: 5,
-                        duration: 100,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(searchLogoShakeAnimation.current, {
-                        toValue: -3,
-                        duration: 100,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(searchLogoShakeAnimation.current, {
-                        toValue: 3,
-                        duration: 100,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(searchLogoShakeAnimation.current, {
-                        toValue: 0,
-                        duration: 100,
-                        useNativeDriver: true,
-                    }),
-                ]),
-                // Jump animation (vertical translation)
-                Animated.sequence([
-                    Animated.timing(searchLogoJumpAnimation.current, {
-                        toValue: -8,
-                        duration: 150,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(searchLogoJumpAnimation.current, {
-                        toValue: -12,
-                        duration: 100,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(searchLogoJumpAnimation.current, {
-                        toValue: -5,
-                        duration: 100,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(searchLogoJumpAnimation.current, {
-                        toValue: 0,
-                        duration: 150,
-                        useNativeDriver: true,
-                    }),
-                ]),
-            ]).start();
+        const fetchFrequentlyOrdered = async () => {
+            try {
+                setLoadingFrequent(true);
+                const response = await authAPI.getFrequentlyOrdered(10);
+                
+                // Handle empty or invalid response
+                if (!response || !response.data || !response.data.items) {
+                    setFrequentlyOrdered([]);
+                    return;
+                }
+                
+                // Handle empty array
+                if (!Array.isArray(response.data.items) || response.data.items.length === 0) {
+                    setFrequentlyOrdered([]);
+                    return;
+                }
+                
+                const adapted = adaptBackendMenuItems(response.data.items);
+                setFrequentlyOrdered(adapted);
+            } catch (error: any) {
+                setFrequentlyOrdered([]);
+            } finally {
+                setLoadingFrequent(false);
+            }
         };
 
-        // Start the animation immediately
-        startShakeAndJumpAnimation();
-
-        // Set up interval to repeat every 5 seconds
-        const animationInterval = setInterval(startShakeAndJumpAnimation, 5000);
-
-        // Cleanup interval on component unmount
-        return () => clearInterval(animationInterval);
-    }, []);
+        fetchFrequentlyOrdered();
+    }, [isAuthenticated]);
 
     // Use imported menu data
     const menuItems: MenuItem[] = menuData;
 
     const filteredItems = menuItems.filter(item => {
-        const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
-        return matchesSearch && matchesCategory && item.available;
+        return matchesCategory && item.available;
     });
 
-    const handleAddToCart = (item: MenuItem) => {
-        addToCart(item);
-    };
 
-    // Get quantity for an item from cart
-    const getItemQuantity = (itemId: string): number => {
-        const cartItem = cartItems.find(item => item.menuItem.id === itemId);
-        return cartItem ? cartItem.quantity : 0;
-    };
-
-    // Get or create animation value for an item (optimized)
-    const getItemAnimation = (itemId: string): Animated.Value => {
-        if (!itemAnimations[itemId]) {
-            // Return a static value instead of creating new ones during render
-            const quantity = getItemQuantity(itemId);
-            return new Animated.Value(quantity > 0 ? 1 : 0);
-        }
-        return itemAnimations[itemId];
-    };
-
-    // Ultra-fast add button with immediate response
-    const handleAddButtonPress = (item: MenuItem) => {
-        const quantity = getItemQuantity(item.id);
-
-        if (quantity === 0) {
-            // IMMEDIATE cart update - no delay
-            addToCart(item);
-
-            // IMMEDIATE state update - user sees change instantly
-            setExpandedItems(prev => ({ ...prev, [item.id]: true }));
-
-            // Simple fade-in animation (optional and non-blocking)
-            const newAnimation = new Animated.Value(0);
-            setItemAnimations(prev => ({ ...prev, [item.id]: newAnimation }));
-
-            // Very fast animation that doesn't block UI
-            Animated.timing(newAnimation, {
-                toValue: 1,
-                duration: 150, // Much faster
-                useNativeDriver: true,
-                easing: Easing.out(Easing.quad),
-            }).start();
-        }
-    };
-
-    // Ultra-responsive quantity change with zero delay
-    const handleQuantityChange = (itemId: string, newQuantity: number) => {
-        if (newQuantity <= 0) {
-            // INSTANT cart update - user sees result immediately
-            updateQuantity(itemId, 0);
-            setExpandedItems(prev => ({ ...prev, [itemId]: false }));
-
-            // Clean up animation immediately
-            setItemAnimations(prev => {
-                const newAnimations = { ...prev };
-                delete newAnimations[itemId];
-                return newAnimations;
-            });
-        } else {
-            // INSTANT quantity update - no delay
-            updateQuantity(itemId, newQuantity);
-        }
-    };
 
     const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
         const currentScrollY = event.nativeEvent.contentOffset.y;
         const scrollDifference = currentScrollY - lastScrollY.current;
-
-        // Show sticky search when header is completely hidden
-        if (currentScrollY > headerHeight) {
-            if (!showStickySearch) {
-                setShowStickySearch(true);
-            }
-        } else {
-            if (showStickySearch) {
-                setShowStickySearch(false);
-            }
-        }
 
         // Always show tab bar when at the top of the screen
         if (currentScrollY <= 50) {
@@ -304,49 +124,13 @@ const CustomerHomeScreen: React.FC = () => {
         </TouchableOpacity>
     );
 
-    const getPopularItems = () => {
-        // Select 3 specific popular items
-        const popularItemIds = ['nonveg_1', 'veg_1', 'biryani_1']; // Butter Chicken, Paneer Butter Masala, Chicken Dum Biryani
-        return menuItems.filter(item => popularItemIds.includes(item.id));
-    };
-
-    const renderFeaturedItem = ({ item }: { item: MenuItem }) => (
-        <View style={styles.featuredCard}>
-            {item.image && (
-                <Image
-                    source={{ uri: item.image }}
-                    style={styles.featuredBackgroundImage}
-                    resizeMode="cover"
-                />
-            )}
-            <View style={styles.featuredGradientOverlay}>
-                <View style={styles.featuredBadgeContainer}>
-                    <TouchableOpacity
-                        style={styles.addToCartButton}
-                        onPress={() => handleAddToCart(item)}
-                    >
-                        <Ionicons name="add" size={18} color="#F9F9F9" />
-                    </TouchableOpacity>
-                </View>
-                <View style={styles.featuredInfoCard}>
-                    <View style={styles.titlePriceContainer}>
-                        <Text style={styles.featuredCardTitle} numberOfLines={1}>{item.name}</Text>
-                        <View style={styles.priceTag}>
-                            <Text style={styles.featuredCardPrice}>₹{item.price}</Text>
-                        </View>
-                    </View>
-                </View>
-            </View>
-        </View>
-    );
-
     const renderMenuItem = React.useCallback(({ item }: { item: MenuItem }) => {
-        const quantity = getItemQuantity(item.id);
-        const isExpanded = quantity > 0; // Simplified check
-        const animation = itemAnimations[item.id] || new Animated.Value(isExpanded ? 1 : 0);
-
         return (
-            <View style={styles.menuCard}>
+            <TouchableOpacity 
+                style={styles.menuCard}
+                onPress={() => setSelectedItem(item)}
+                activeOpacity={0.9}
+            >
                 <View style={styles.menuImageContainer}>
                     {item.image ? (
                         <Image
@@ -363,142 +147,14 @@ const CustomerHomeScreen: React.FC = () => {
                 <View style={styles.menuInfo}>
                     <Text style={styles.menuName}>{item.name}</Text>
                     <Text style={styles.menuDescription} numberOfLines={2}>{item.description}</Text>
-                    <View style={styles.homePricePortionContainer}>
-                        <Text style={styles.menuPrice}>₹{item.price.toFixed(0)}</Text>
-                        {item.portion && (
-                            <View style={styles.homePortionBadge}>
-                                <Text style={styles.homePortionText}>{item.portion}</Text>
-                            </View>
-                        )}
-                    </View>
+                    <Text style={styles.menuPrice}>₹{item.price.toFixed(0)}</Text>
                 </View>
-
-                <View style={styles.buttonContainer}>
-                    {!isExpanded ? (
-                        <TouchableOpacity
-                            style={styles.addButton}
-                            onPress={() => handleAddButtonPress(item)}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons name="add" size={20} color="#F9F9F9" />
-                        </TouchableOpacity>
-                    ) : (
-                        <View style={styles.quantityControlsContainer}>
-                            <View style={styles.homeQuantityControls}>
-                                <TouchableOpacity
-                                    style={styles.homeQuantityButton}
-                                    onPress={() => handleQuantityChange(item.id, quantity - 1)}
-                                    activeOpacity={0.7}
-                                >
-                                    <Ionicons name="remove" size={14} color="#e36057ff" />
-                                </TouchableOpacity>
-
-                                <Text style={styles.homeQuantity}>{quantity}</Text>
-
-                                <TouchableOpacity
-                                    style={styles.homeQuantityButton}
-                                    onPress={() => handleQuantityChange(item.id, quantity + 1)}
-                                    activeOpacity={0.7}
-                                >
-                                    <Ionicons name="add" size={14} color="#e36057ff" />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    )}
-                </View>
-            </View>
+            </TouchableOpacity>
         );
     }, [cartItems]); // Simplified dependencies
 
     return (
         <View style={styles.container}>
-            {/* Animated Sticky Search Bar */}
-            {showStickySearch && (
-                <Animated.View
-                    style={[
-                        styles.stickySearchBar,
-                        {
-                            transform: [{ translateY: stickySearchAnimation.current }]
-                        }
-                    ]}
-                >
-                    <View style={styles.stickyHeaderRow}>
-                        <Animated.View
-                            style={{
-                                transform: [{ scale: stickySearchPressAnimation.current }],
-                                flex: 1,
-                            }}
-                        >
-                            <TouchableOpacity
-                                style={styles.stickySearchContainer}
-                                activeOpacity={0.9}
-                                onPress={navigateToMenu}
-                                onPressIn={handleStickySearchPressIn}
-                                onPressOut={handleStickySearchPressOut}
-                            >
-                                <Ionicons name="search" size={20} color="#8E8E93" />
-                                <View style={styles.stickySearchInput}>
-                                    <Text style={styles.stickySearchPlaceholder}>Search delicious food...</Text>
-                                </View>
-                                <Image
-                                    source={require('../../../../assets/logo.png')}
-                                    style={styles.stickyLogo}
-                                    resizeMode="contain"
-                                />
-                            </TouchableOpacity>
-                        </Animated.View>
-
-                        {/* Sticky Cart Icon */}
-                        <TouchableOpacity
-                            style={styles.stickyCartButton}
-                            onPress={() => navigateToOrder('Cart')}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons name="bag-outline" size={24} color="#1C1C1E" />
-                            {cartCount > 0 && (
-                                <View style={styles.cartBadge}>
-                                    <Text style={styles.cartBadgeText}>
-                                        {cartCount > 99 ? '99+' : cartCount}
-                                    </Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Sticky Categories */}
-                    <FlatList
-                        data={categories}
-                        renderItem={({ item }) => (
-                            <TouchableOpacity
-                                style={styles.stickyCategoryContainer}
-                                onPress={() => setSelectedCategory(item.name)}
-                            >
-                                <View style={[
-                                    styles.stickyCategoryIcon,
-                                    selectedCategory === item.name && styles.selectedStickyCategoryIcon
-                                ]}>
-                                    <Text style={styles.stickyCategoryEmoji}>{item.icon}</Text>
-                                </View>
-                                <Text style={[
-                                    styles.stickyCategoryText,
-                                    selectedCategory === item.name && styles.selectedStickyCategoryText
-                                ]}>
-                                    {item.name}
-                                </Text>
-                            </TouchableOpacity>
-                        )}
-                        keyExtractor={(item) => item.name}
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.stickyCategoriesContainer}
-                        contentContainerStyle={styles.stickyCategoriesContent}
-                        scrollEnabled={true}
-                        nestedScrollEnabled={true}
-                        keyboardShouldPersistTaps="handled"
-                    />
-                </Animated.View>
-            )}
-
             <FlatList
                 showsVerticalScrollIndicator={false}
                 onScroll={handleScroll}
@@ -542,107 +198,71 @@ const CustomerHomeScreen: React.FC = () => {
                                         )}
                                     </TouchableOpacity>
                                 </View>
-
-                                {/* Search Bar */}
-                                <Animated.View
-                                    style={{
-                                        transform: [{ scale: searchPressAnimation.current }],
-                                    }}
-                                >
-                                    <TouchableOpacity
-                                        style={styles.searchContainer}
-                                        activeOpacity={0.9}
-                                        onPress={navigateToMenu}
-                                        onPressIn={handleSearchPressIn}
-                                        onPressOut={handleSearchPressOut}
-                                    >
-                                        <Ionicons name="search" size={20} color="#8E8E93" />
-                                        <View style={styles.searchInput}>
-                                            <Text style={styles.searchPlaceholder}>Search delicious food...</Text>
-                                        </View>
-                                        <Animated.View
-                                            style={{
-                                                transform: [
-                                                    {
-                                                        translateY: searchLogoJumpAnimation.current,
-                                                    },
-                                                    {
-                                                        rotate: searchLogoShakeAnimation.current.interpolate({
-                                                            inputRange: [-5, 5],
-                                                            outputRange: ['-5deg', '5deg'],
-                                                        }),
-                                                    },
-                                                ],
-                                                transformOrigin: 'bottom',
-                                            }}
-                                        >
-                                            <Image
-                                                source={require('../../../../assets/logo.png')}
-                                                style={styles.searchLogo}
-                                                resizeMode="contain"
-                                            />
-                                        </Animated.View>
-                                    </TouchableOpacity>
-                                </Animated.View>
                             </View>
                         </View>
 
-                        {/* Categories */}
-                        <FlatList
-                            data={categories}
-                            renderItem={renderCategory}
-                            keyExtractor={(item) => item.name}
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            style={styles.categoriesContainer}
-                            contentContainerStyle={styles.categoriesContent}
-                            scrollEnabled={true}
-                            nestedScrollEnabled={true}
-                            keyboardShouldPersistTaps="handled"
-                        />
-
-                        {/* Popular Items Section */}
+                        {/* Previously Ordered Items Section */}
                         <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Popular items</Text>
-                            <TouchableOpacity>
-                                <Text style={styles.seeAllText}>See All</Text>
-                            </TouchableOpacity>
+                            <Text style={styles.sectionTitle}>Your Favorites</Text>
+                            {frequentlyOrdered.length > 0 && (
+                                <TouchableOpacity onPress={() => navigateToTab('Menu')}>
+                                    <Text style={styles.seeAllText}>See All Menu</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
 
-                        {/* Featured Items */}
-                        <FlatList
-                            data={getPopularItems()}
-                            renderItem={renderFeaturedItem}
-                            keyExtractor={(item) => item.id}
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.featuredListContainer}
-                            decelerationRate="fast"
-                            snapToInterval={296}
-                            snapToAlignment="start"
-                            scrollEnabled={true}
-                            nestedScrollEnabled={true}
-                            keyboardShouldPersistTaps="handled"
-                        />
+                        {/* Loading State */}
+                        {loadingFrequent && (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color="#e36057ff" />
+                                <Text style={styles.loadingText}>Loading your favorites...</Text>
+                            </View>
+                        )}
 
-                        {/* Delicious Items Section */}
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Delicious items</Text>
-                            <TouchableOpacity>
-                                <Text style={styles.seeAllText}>See All</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Menu Items */}
-                        {filteredItems.map((item) => (
+                        {/* Frequently Ordered Items */}
+                        {!loadingFrequent && frequentlyOrdered.length > 0 && frequentlyOrdered.map((item) => (
                             <View key={item.id} style={styles.menuItemContainer}>
                                 {renderMenuItem({ item })}
                             </View>
                         ))}
+
+                        {/* Empty State */}
+                        {!loadingFrequent && frequentlyOrdered.length === 0 && (
+                            <View style={styles.emptyState}>
+                                <Ionicons name="restaurant-outline" size={64} color="#8E8E93" />
+                                <Text style={styles.emptyTitle}>No order history yet</Text>
+                                <Text style={styles.emptySubtitle}>
+                                    Start exploring our delicious menu and place your first order!
+                                </Text>
+                                <TouchableOpacity 
+                                    style={styles.exploreButton}
+                                    onPress={() => navigateToTab('Menu')}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.exploreButtonText}>Explore Menu</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
                 )}
                 keyExtractor={() => 'main'}
             />
+
+            {/* Item Detail Modal */}
+            <Modal
+                visible={selectedItem !== null}
+                animationType="fade"
+                presentationStyle="fullScreen"
+                onRequestClose={() => setSelectedItem(null)}
+            >
+                {selectedItem && (
+                    <ItemDetailScreen 
+                        item={selectedItem}
+                        onClose={() => setSelectedItem(null)}
+                        onSelectItem={(item) => setSelectedItem(item)}
+                    />
+                )}
+            </Modal>
         </View>
     );
 };
@@ -789,45 +409,6 @@ const styles = StyleSheet.create({
     filterButton: {
         padding: 8,
     },
-    searchContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.98)',
-        marginHorizontal: 20,
-        marginTop: 15,
-        marginBottom: 20,
-        paddingHorizontal: 15,
-        paddingVertical: 2,
-        borderRadius: 25,
-        shadowColor: '#2C2C2E',
-        shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: 0.18,
-        shadowRadius: 10,
-        elevation: 6,
-        borderWidth: 1,
-        borderColor: '#F0F0F0',
-    },
-    searchLogo: {
-        width: 30,
-        height: 30,
-        marginLeft: 10,
-    },
-    searchInput: {
-        flex: 1,
-        marginLeft: 12,
-        fontSize: 15,
-        paddingVertical: 16,
-        fontFamily: 'System',
-        color: '#1C1C1E',
-        fontWeight: '500',
-        justifyContent: 'center',
-    },
-    searchPlaceholder: {
-        fontSize: 15,
-        color: '#8E8E93',
-        fontFamily: 'System',
-        fontWeight: '500',
-    },
     categoriesContainer: {
         marginBottom: 20,
         marginTop: 15,
@@ -873,6 +454,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 20,
         marginBottom: 15,
+        marginTop: 30
     },
     sectionTitle: {
         fontSize: 16,
@@ -1215,6 +797,52 @@ const styles = StyleSheet.create({
     quantityControlsContainer: {
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    loadingContainer: {
+        paddingVertical: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#8E8E93',
+    },
+    emptyState: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 60,
+        paddingHorizontal: 40,
+    },
+    emptyTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#1C1C1E',
+        marginTop: 16,
+        marginBottom: 8,
+    },
+    emptySubtitle: {
+        fontSize: 14,
+        color: '#8E8E93',
+        textAlign: 'center',
+        lineHeight: 20,
+        marginBottom: 24,
+    },
+    exploreButton: {
+        backgroundColor: '#e36057ff',
+        paddingHorizontal: 32,
+        paddingVertical: 14,
+        borderRadius: 25,
+        shadowColor: '#e36057ff',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    exploreButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '600',
     },
     homeQuantityControls: {
         flexDirection: 'column',

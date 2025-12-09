@@ -6,9 +6,12 @@ import DeliveryAssignedScreen from '../screens/delivery/AssignedDeliveriesScreen
 import DeliveryMapScreen from '../screens/delivery/MapScreen';
 import DeliveryHistoryScreen from '../screens/delivery/HistoryScreen';
 import ProfileScreen from '../components/ProfileScreen';
+import EditProfileScreen from '../screens/common/EditProfileScreen';
+import HelpSupportScreen from '../screens/common/HelpSupportScreen';
+import PrivacyPolicyScreen from '../screens/common/PrivacyPolicyScreen';
 import DeliveryTabBar from '../components/DeliveryTabBar';
 import { TabBarProvider } from '../contexts/TabBarContext';
-import { DeliverySwipeNavigationProvider } from '../contexts/DeliverySwipeNavigationContext';
+import { DeliverySwipeNavigationProvider, useDeliverySwipeNavigation } from '../contexts/DeliverySwipeNavigationContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -17,11 +20,9 @@ const SwipeableDeliveryNavigator: React.FC = () => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const scrollViewRef = useRef<ScrollView>(null);
 
-    // Memoized screen configuration for performance
+    // Memoized screen configuration for performance - Only 2 main screens
     const screens = useMemo(() => [
         { name: 'AssignedDeliveries', component: DeliveryAssignedScreen, key: 'assigneddeliveries', label: 'Deliveries' },
-        { name: 'MapView', component: DeliveryMapScreen, key: 'mapview', label: 'Map' },
-        { name: 'DeliveryHistory', component: DeliveryHistoryScreen, key: 'deliveryhistory', label: 'History' },
         { name: 'Profile', component: ProfileScreen, key: 'profile', label: 'Profile' }
     ], []);
 
@@ -48,8 +49,8 @@ const SwipeableDeliveryNavigator: React.FC = () => {
     // Get current tab name
     const currentTabName = screens[currentIndex]?.name || 'AssignedDeliveries';
 
-    // Enhanced scroll handler with real-time tracking
-    const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // Scroll end handler - only update when scroll animation completes
+    const handleScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
         const offsetX = event.nativeEvent.contentOffset.x;
         const newIndex = Math.round(offsetX / screenWidth);
 
@@ -82,10 +83,7 @@ const SwipeableDeliveryNavigator: React.FC = () => {
                 options: {
                     tabBarLabel: screen.label,
                     tabBarIcon: ({ color, size }: { color: string; size: number }) => {
-                        const iconName =
-                            screen.name === 'AssignedDeliveries' ? 'bicycle' :
-                                screen.name === 'MapView' ? 'map' :
-                                    screen.name === 'DeliveryHistory' ? 'time' : 'person';
+                        const iconName = screen.name === 'AssignedDeliveries' ? 'bicycle' : 'person';
                         return <Ionicons name={iconName as any} size={size} color={color} />;
                     }
                 },
@@ -114,8 +112,7 @@ const SwipeableDeliveryNavigator: React.FC = () => {
                     horizontal
                     pagingEnabled
                     showsHorizontalScrollIndicator={false}
-                    onScroll={handleScroll}
-                    scrollEventThrottle={4} // Ultra-responsive scroll tracking
+                    onMomentumScrollEnd={handleScrollEnd}
                     bounces={false}
                     decelerationRate="fast" // Faster deceleration for snappy feel
                     removeClippedSubviews={true} // Performance optimization
@@ -164,10 +161,49 @@ const SwipeableDeliveryNavigator: React.FC = () => {
                         onTabPress={handleTabPress}
                     />
                 </View>
+
+                {/* Profile Screens Overlay */}
+                <ProfileScreensOverlay />
             </View>
         </DeliverySwipeNavigationProvider>
     );
 };
+
+// Profile screens overlay component for delivery - optimized with memo
+const ProfileScreensOverlay: React.FC = React.memo(() => {
+    const { getTabParams } = useDeliverySwipeNavigation();
+    const profileParams = getTabParams('Profile') || {};
+    const { screen } = profileParams;
+
+    if (!screen) return null;
+
+    const renderProfileScreen = () => {
+        switch (screen) {
+            case 'EditProfile':
+                return <EditProfileScreen />;
+            case 'HelpSupport':
+                return <HelpSupportScreen />;
+            case 'PrivacyPolicy':
+                return <PrivacyPolicyScreen />;
+            default:
+                return null;
+        }
+    };
+
+    return (
+        <View style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: '#FFFFFF',
+            zIndex: 2000,
+        }}>
+            {renderProfileScreen()}
+        </View>
+    );
+});
 
 const DeliveryTabNavigator: React.FC = () => {
     return (

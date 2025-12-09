@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
     Text,
@@ -8,23 +8,26 @@ import {
     Image,
     Alert,
     Animated,
-    Dimensions
+    Dimensions,
+    BackHandler
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../../../contexts/CartContext';
 import { useSwipeNavigation } from '../../../contexts/SwipeNavigationContext';
 import { CartItem } from '../../../types';
+import { settingsAPI, AppSettings } from '../../../api/settings.api';
 
 const { width } = Dimensions.get('window');
 
 const CartScreen: React.FC = () => {
     const { cartItems, cartTotal, updateQuantity, removeFromCart, clearCart } = useCart();
     const { navigateToOrder, goBackToTab } = useSwipeNavigation();
-    const [deliveryFee] = useState(2.99);
-    const [platformFee] = useState(1.50);
+    const [settings, setSettings] = useState<AppSettings | null>(null);
     const slideInAnimation = useRef(new Animated.Value(width));
 
-    const grandTotal = cartTotal + deliveryFee + platformFee;
+    const deliveryFee = settings?.deliveryCharge || 0;
+    const taxAmount = settings?.taxRate ? (cartTotal * settings.taxRate / 100) : 0;
+    const grandTotal = cartTotal + deliveryFee + taxAmount;
 
     React.useEffect(() => {
         Animated.timing(slideInAnimation.current, {
@@ -34,18 +37,46 @@ const CartScreen: React.FC = () => {
         }).start();
     }, []);
 
-    const handleQuantityChange = (itemId: string, newQuantity: number) => {
+    // Fetch settings from backend
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const response = await settingsAPI.getSettings();
+                setSettings(response.data.settings);
+            } catch (error) {
+                console.error('Error fetching settings:', error);
+                // Use default values if fetch fails
+                setSettings({
+                    deliveryCharge: 2.99,
+                    taxRate: 5,
+                } as AppSettings);
+            }
+        };
+        fetchSettings();
+    }, []);
+
+    // Handle hardware back button press
+    useEffect(() => {
+        const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+            goBackToTab();
+            return true; // Prevent default behavior (app exit)
+        });
+
+        return () => backHandler.remove();
+    }, [goBackToTab]);
+
+    const handleQuantityChange = (itemId: string, newQuantity: number, portion?: any) => {
         if (newQuantity <= 0) {
             Alert.alert(
                 'Remove Item',
                 'Are you sure you want to remove this item from cart?',
                 [
                     { text: 'Cancel', style: 'cancel' },
-                    { text: 'Remove', style: 'destructive', onPress: () => updateQuantity(itemId, 0) }
+                    { text: 'Remove', style: 'destructive', onPress: () => updateQuantity(itemId, 0, portion) }
                 ]
             );
         } else {
-            updateQuantity(itemId, newQuantity);
+            updateQuantity(itemId, newQuantity, portion);
         }
     };
 
@@ -86,16 +117,24 @@ const CartScreen: React.FC = () => {
             </View>
 
             <View style={styles.itemDetails}>
-                <Text style={styles.itemName} numberOfLines={1}>{item.menuItem.name}</Text>
+                <Text style={styles.itemName} numberOfLines={1}>
+                    {item.menuItem.name}
+                    {item.menuItem.portion && (
+                        <Text style={styles.portionBadge}> • {item.menuItem.portion}</Text>
+                    )}
+                </Text>
                 <Text style={styles.itemDescription} numberOfLines={2}>{item.menuItem.description}</Text>
 
                 <View style={styles.itemFooter}>
-                    <Text style={styles.itemPrice}>₹{(item.menuItem.price * item.quantity).toFixed(2)}</Text>
+                    <View>
+                        <Text style={styles.itemPriceLabel}>₹{item.menuItem.price.toFixed(0)} each</Text>
+                        <Text style={styles.itemPrice}>₹{(item.menuItem.price * item.quantity).toFixed(0)}</Text>
+                    </View>
 
                     <View style={styles.quantityControls}>
                         <TouchableOpacity
                             style={styles.quantityButton}
-                            onPress={() => handleQuantityChange(item.menuItem.id, item.quantity - 1)}
+                            onPress={() => handleQuantityChange(item.menuItem.id, item.quantity - 1, item.menuItem.portion)}
                             activeOpacity={0.7}
                         >
                             <Ionicons name="remove" size={16} color="#e36057ff" />
@@ -105,7 +144,7 @@ const CartScreen: React.FC = () => {
 
                         <TouchableOpacity
                             style={styles.quantityButton}
-                            onPress={() => handleQuantityChange(item.menuItem.id, item.quantity + 1)}
+                            onPress={() => handleQuantityChange(item.menuItem.id, item.quantity + 1, item.menuItem.portion)}
                             activeOpacity={0.7}
                         >
                             <Ionicons name="add" size={16} color="#e36057ff" />
@@ -191,26 +230,46 @@ const CartScreen: React.FC = () => {
                             <View style={styles.billSummary}>
                                 <Text style={styles.billTitle}>Bill Summary</Text>
 
+                                {/* Itemized List */}
+                                {cartItems.map((item) => (
+                                    <View key={item.id} style={styles.billItemRow}>
+                                        <Text style={styles.billItemText} numberOfLines={1}>
+                                            {item.menuItem.name}
+                                            {item.menuItem.portion && ` (${item.menuItem.portion})`}
+                                            <Text style={styles.billItemQty}> x{item.quantity}</Text>
+                                        </Text>
+                                        <Text style={styles.billItemValue}>
+                                            ₹{(item.menuItem.price * item.quantity).toFixed(0)}
+                                        </Text>
+                                    </View>
+                                ))}
+
+                                <View style={styles.billDivider} />
+
                                 <View style={styles.billRow}>
                                     <Text style={styles.billLabel}>Item Total</Text>
-                                    <Text style={styles.billValue}>₹{cartTotal.toFixed(2)}</Text>
+                                    <Text style={styles.billValue}>₹{cartTotal.toFixed(0)}</Text>
                                 </View>
 
-                                <View style={styles.billRow}>
-                                    <Text style={styles.billLabel}>Delivery Fee</Text>
-                                    <Text style={styles.billValue}>₹{deliveryFee.toFixed(2)}</Text>
-                                </View>
+                                {deliveryFee > 0 && (
+                                    <View style={styles.billRow}>
+                                        <Text style={styles.billLabel}>Delivery Charge</Text>
+                                        <Text style={styles.billValue}>₹{deliveryFee.toFixed(0)}</Text>
+                                    </View>
+                                )}
 
-                                <View style={styles.billRow}>
-                                    <Text style={styles.billLabel}>Platform Fee</Text>
-                                    <Text style={styles.billValue}>₹{platformFee.toFixed(2)}</Text>
-                                </View>
+                                {taxAmount > 0 && (
+                                    <View style={styles.billRow}>
+                                        <Text style={styles.billLabel}>Tax ({settings?.taxRate}%)</Text>
+                                        <Text style={styles.billValue}>₹{taxAmount.toFixed(0)}</Text>
+                                    </View>
+                                )}
 
-                                <View style={styles.divider} />
+                                <View style={styles.billDivider} />
 
                                 <View style={styles.billRow}>
                                     <Text style={styles.billTotalLabel}>Grand Total</Text>
-                                    <Text style={styles.billTotalValue}>₹{grandTotal.toFixed(2)}</Text>
+                                    <Text style={styles.billTotalValue}>₹{grandTotal.toFixed(0)}</Text>
                                 </View>
                             </View>
                         }
@@ -351,11 +410,22 @@ const styles = StyleSheet.create({
         paddingHorizontal: 4, // Add horizontal padding for better spacing
     },
     itemPrice: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: '700',
         color: '#e36057ff',
         fontFamily: 'System',
-        marginRight: 12, // Add margin to create space from quantity controls
+    },
+    itemPriceLabel: {
+        fontSize: 12,
+        color: '#8E8E93',
+        fontFamily: 'System',
+        marginBottom: 2,
+    },
+    portionBadge: {
+        fontSize: 12,
+        color: '#e36057ff',
+        fontWeight: '600',
+        fontFamily: 'System',
     },
     quantityControls: {
         flexDirection: 'row',
@@ -449,30 +519,53 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#1C1C1E',
         fontFamily: 'System',
-        marginBottom: 20, // Increased margin for better spacing
+        marginBottom: 16,
+    },
+    billItemRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+        paddingVertical: 2,
+    },
+    billItemText: {
+        fontSize: 13,
+        color: '#3C3C43',
+        fontFamily: 'System',
+        flex: 1,
+        marginRight: 8,
+    },
+    billItemQty: {
+        fontWeight: '600',
+        color: '#1C1C1E',
+    },
+    billItemValue: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#1C1C1E',
+        fontFamily: 'System',
+    },
+    billDivider: {
+        height: 1,
+        backgroundColor: '#E5E5E7',
+        marginVertical: 12,
     },
     billRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16, // Increased spacing between rows
+        marginBottom: 8,
     },
     billLabel: {
-        fontSize: 15, // Slightly larger text
-        color: '#6B7280', // Softer gray color
+        fontSize: 13,
+        color: '#8E8E93',
         fontFamily: 'System',
-        fontWeight: '500', // Medium weight for better readability
     },
     billValue: {
-        fontSize: 15, // Match the label size
+        fontSize: 13,
         fontWeight: '600',
         color: '#1C1C1E',
         fontFamily: 'System',
-    },
-    divider: {
-        height: 1,
-        backgroundColor: '#E5E7EB', // Softer divider color
-        marginVertical: 12, // More spacing around divider
     },
     billTotalLabel: {
         fontSize: 17, // Larger for total row

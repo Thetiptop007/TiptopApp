@@ -60,9 +60,6 @@ const CustomTabBar: React.FC<CustomTabBarProps> = ({ state, descriptors, navigat
 
     const getLabel = (routeName: string): string => {
         switch (routeName) {
-            case 'Dashboard': return 'Dashboard';
-            case 'Orders': return 'Orders';
-            case 'MenuManagement': return 'Menu';
             case 'Profile': return 'Profile';
             case 'Home': return 'Home';
             case 'Search': return 'Search';

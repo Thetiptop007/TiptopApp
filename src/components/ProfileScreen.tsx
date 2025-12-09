@@ -1,10 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useProfileNavigation } from '../hooks/useProfileNavigation';
 
 const ProfileScreen: React.FC = () => {
     const { user, logout } = useAuth();
+    const { navigateToTab } = useProfileNavigation();
 
     const handleLogout = () => {
         Alert.alert(
@@ -18,28 +20,18 @@ const ProfileScreen: React.FC = () => {
     };
 
     const profileOptions = [
-        { id: 1, title: 'Edit Profile', icon: 'person-outline', onPress: () => Alert.alert('Edit Profile', 'Coming soon!') },
-        { id: 2, title: 'Change Password', icon: 'lock-closed-outline', onPress: () => Alert.alert('Change Password', 'Coming soon!') },
-        { id: 4, title: 'Help & Support', icon: 'help-circle-outline', onPress: () => Alert.alert('Help & Support', 'Coming soon!') },
-        { id: 5, title: 'Privacy Policy', icon: 'shield-outline', onPress: () => Alert.alert('Privacy Policy', 'Coming soon!') },
+        { id: 1, title: 'Edit Profile', icon: 'person-outline', onPress: () => navigateToTab('Profile', { screen: 'EditProfile' }) },
+        { id: 4, title: 'Help & Support', icon: 'help-circle-outline', onPress: () => navigateToTab('Profile', { screen: 'HelpSupport' }) },
+        { id: 5, title: 'Privacy Policy', icon: 'shield-outline', onPress: () => navigateToTab('Profile', { screen: 'PrivacyPolicy' }) },
     ];
 
     // Add role-specific options
     if (user?.role === 'customer') {
-        profileOptions.splice(2, 0, {
+        profileOptions.splice(1, 0, {
             id: 6,
             title: 'Saved Addresses',
             icon: 'location-outline',
-            onPress: () => Alert.alert('Saved Addresses', 'Coming soon!')
-        });
-    }
-
-    if (user?.role === 'delivery') {
-        profileOptions.splice(2, 0, {
-            id: 7,
-            title: 'Delivery Stats',
-            icon: 'stats-chart-outline',
-            onPress: () => Alert.alert('Delivery Stats', 'Coming soon!')
+            onPress: () => navigateToTab('Profile', { screen: 'SavedAddresses' })
         });
     }
 
@@ -47,19 +39,30 @@ const ProfileScreen: React.FC = () => {
         <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
             {/* Header */}
             <View style={styles.headerContainer}>
-                <Text style={styles.headerTitle}>Profile</Text>
+                <Image
+                    source={require('../../assets/logo-full.png')}
+                    style={styles.headerLogo}
+                    resizeMode="contain"
+                />
             </View>
 
             {/* User Info Card */}
             <View style={styles.userCard}>
-                <View style={styles.avatar}>
-                    <Ionicons name="person" size={50} color="#FFFFFF" />
+                <View style={styles.userCardHeader}>
+                    <View style={styles.avatarContainer}>
+                        <View style={styles.avatar}>
+                            <Ionicons name="person" size={40} color="#FFFFFF" />
+                        </View>
+                        <View style={styles.roleBadge}>
+                            <Text style={styles.roleText}>{user?.role?.toUpperCase()}</Text>
+                        </View>
+                    </View>
                 </View>
                 <View style={styles.userInfo}>
                     <Text style={styles.userName}>{user?.name}</Text>
-                    <Text style={styles.userEmail}>{user?.email}</Text>
-                    <View style={styles.roleBadge}>
-                        <Text style={styles.roleText}>{user?.role?.toUpperCase()}</Text>
+                    <View style={styles.emailContainer}>
+                        <Ionicons name="mail-outline" size={14} color="#8E8E93" />
+                        <Text style={styles.userEmail}>{user?.email}</Text>
                     </View>
                 </View>
             </View>
@@ -110,64 +113,84 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 60,
         paddingBottom: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    headerTitle: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: '#1C1C1E',
-        fontFamily: 'System',
-        textAlign: 'center',
+    headerLogo: {
+        width: 140,
+        height: 60,
     },
     userCard: {
         backgroundColor: '#FFFFFF',
         marginHorizontal: 20,
         marginBottom: 20,
-        borderRadius: 15,
-        padding: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
+        borderRadius: 20,
+        padding: 24,
         shadowColor: '#2C2C2E',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 5,
+    },
+    userCardHeader: {
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    avatarContainer: {
+        position: 'relative',
+        alignItems: 'center',
     },
     avatar: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: '#1C1C1E',
+        width: 90,
+        height: 90,
+        borderRadius: 45,
+        backgroundColor: '#e36057ff',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 16,
-        shadowColor: '#1C1C1E',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowColor: '#e36057ff',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+        borderWidth: 4,
+        borderColor: '#FFFFFF',
     },
     userInfo: {
-        flex: 1,
+        alignItems: 'center',
     },
     userName: {
-        fontSize: 20,
+        fontSize: 24,
         fontWeight: '700',
         color: '#1C1C1E',
         fontFamily: 'System',
-        marginBottom: 4,
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    emailContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F8F9FA',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        gap: 6,
     },
     userEmail: {
         fontSize: 14,
         color: '#8E8E93',
         fontFamily: 'System',
-        marginBottom: 8,
     },
     roleBadge: {
-        backgroundColor: '#6B7280',
-        paddingHorizontal: 12,
+        backgroundColor: '#1C1C1E',
+        paddingHorizontal: 16,
         paddingVertical: 6,
-        borderRadius: 12,
-        alignSelf: 'flex-start',
+        borderRadius: 15,
+        marginTop: 12,
+        shadowColor: '#1C1C1E',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3,
     },
     roleText: {
         color: '#FFFFFF',

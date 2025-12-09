@@ -5,6 +5,11 @@ import CustomerHomeScreen from '../screens/customer/main/HomeScreen';
 import CustomerMenuScreen from '../screens/customer/main/MenuScreen';
 import CustomerOrdersScreen from '../screens/customer/main/OrdersScreen';
 import ProfileScreen from '../components/ProfileScreen';
+import EditProfileScreen from '../screens/common/EditProfileScreen';
+import SavedAddressesScreen from '../screens/common/SavedAddressesScreen';
+import HelpSupportScreen from '../screens/common/HelpSupportScreen';
+import PrivacyPolicyScreen from '../screens/common/PrivacyPolicyScreen';
+import AddAddressScreen from '../screens/customer/main/AddAddressScreen';
 import CustomTabBar from '../components/CustomTabBar';
 import OrderNavigator from './OrderNavigator';
 import { TabBarProvider } from '../contexts/TabBarContext';
@@ -192,9 +197,52 @@ const CustomerNavigatorContent: React.FC<{
                     <OrderNavigator />
                 </View>
             )}
+
+            {/* Profile Screens Overlay */}
+            <ProfileScreensOverlay />
         </View>
     );
 };
+
+// Profile screens overlay component
+const ProfileScreensOverlay: React.FC = React.memo(() => {
+    const { getTabParams } = useSwipeNavigation();
+    const profileParams = getTabParams('Profile') || {};
+    const { screen } = profileParams;
+
+    if (!screen) return null;
+
+    const renderProfileScreen = () => {
+        switch (screen) {
+            case 'EditProfile':
+                return <EditProfileScreen />;
+            case 'SavedAddresses':
+                return <SavedAddressesScreen />;
+            case 'AddAddress':
+                return <AddAddressScreen />;
+            case 'HelpSupport':
+                return <HelpSupportScreen />;
+            case 'PrivacyPolicy':
+                return <PrivacyPolicyScreen />;
+            default:
+                return null;
+        }
+    };
+
+    return (
+        <View style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: '#FFFFFF',
+            zIndex: 2000,
+        }}>
+            {renderProfileScreen()}
+        </View>
+    );
+});
 
 const CustomerTabNavigator: React.FC = () => {
     return (

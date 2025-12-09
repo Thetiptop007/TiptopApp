@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'customer' | 'delivery';
+export type UserRole = 'customer' | 'delivery';
 
 export interface User {
     id: string;
@@ -9,17 +9,25 @@ export interface User {
     address?: string;
 }
 
+export type PortionSize = 'Quarter' | 'Half' | 'Full' | '2PCS' | '4PCS' | '8PCS' | '16PCS';
+
+export interface PriceVariant {
+    quantity: PortionSize;
+    price: number;
+}
+
 export interface MenuItem {
     id: string;
     name: string;
     description: string;
-    price: number;
+    price: number; // Default/base price for backward compatibility
+    priceVariants?: PriceVariant[]; // Optional array of price variants
     category: string;
     image?: string;
     available: boolean;
     rating?: number;
     reviews?: number;
-    portion?: 'Quarter' | 'Half' | 'Full';
+    portion?: PortionSize; // Selected portion
 }
 
 export interface CartItem {
@@ -63,7 +71,6 @@ export interface DeliveryPerson {
 
 export type RootStackParamList = {
     Auth: undefined;
-    AdminTabs: undefined;
     CustomerTabs: undefined;
     DeliveryTabs: undefined;
 };
@@ -73,13 +80,7 @@ export type AuthStackParamList = {
     Login: undefined;
     SignUp: undefined;
     RoleSelection: undefined;
-};
-
-export type AdminTabParamList = {
-    Dashboard: undefined;
-    Orders: undefined;
-    MenuManagement: undefined;
-    Profile: undefined;
+    VerifyOTP: { email: string; fromSignup?: boolean };
 };
 
 export type CustomerTabParamList = {

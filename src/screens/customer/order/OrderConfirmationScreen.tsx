@@ -6,9 +6,11 @@ import {
     ScrollView,
     TouchableOpacity,
     Animated,
-    Dimensions
+    Dimensions,
+    BackHandler
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSwipeNavigation } from '../../../contexts/SwipeNavigationContext';
 
 const { width } = Dimensions.get('window');
 
@@ -23,18 +25,10 @@ const OrderConfirmationScreen: React.FC<OrderConfirmationProps> = ({
     estimatedDeliveryTime = 35,
     totalAmount = 247.50
 }) => {
-    const [currentStep, setCurrentStep] = useState(0);
+    const { navigateToTab } = useSwipeNavigation();
     const slideInAnimation = useRef(new Animated.Value(width));
     const scaleAnimation = useRef(new Animated.Value(0));
     const fadeAnimation = useRef(new Animated.Value(0));
-
-    const orderSteps = [
-        { id: 'placed', title: 'Order Placed', subtitle: 'Your order has been received', icon: 'checkmark-circle', completed: true },
-        { id: 'confirmed', title: 'Order Confirmed', subtitle: 'Restaurant is preparing your food', icon: 'restaurant', completed: true },
-        { id: 'preparing', title: 'Preparing', subtitle: 'Your delicious meal is being prepared', icon: 'flame', completed: false },
-        { id: 'ready', title: 'Ready for Pickup', subtitle: 'Your order is ready for delivery', icon: 'bag-check', completed: false },
-        { id: 'delivered', title: 'Delivered', subtitle: 'Enjoy your meal!', icon: 'checkmark-done', completed: false },
-    ];
 
     useEffect(() => {
         // Slide in animation
@@ -48,12 +42,12 @@ const OrderConfirmationScreen: React.FC<OrderConfirmationProps> = ({
         Animated.sequence([
             Animated.timing(scaleAnimation.current, {
                 toValue: 1.2,
-                duration: 400,
+                duration: 300,
                 useNativeDriver: true,
             }),
             Animated.timing(scaleAnimation.current, {
                 toValue: 1,
-                duration: 200,
+                duration: 150,
                 useNativeDriver: true,
             }),
         ]).start();
@@ -61,23 +55,25 @@ const OrderConfirmationScreen: React.FC<OrderConfirmationProps> = ({
         // Fade in animation
         Animated.timing(fadeAnimation.current, {
             toValue: 1,
-            duration: 600,
+            duration: 400,
             useNativeDriver: true,
         }).start();
-
-        // Simulate order progress updates
-        const progressInterval = setInterval(() => {
-            setCurrentStep(prev => {
-                if (prev < orderSteps.length - 1) {
-                    return prev + 1;
-                }
-                clearInterval(progressInterval);
-                return prev;
-            });
-        }, 3000);
-
-        return () => clearInterval(progressInterval);
     }, []);
+
+    // Handle hardware back button - go to Orders tab
+    useEffect(() => {
+        const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+            handleTrackOrder();
+            return true;
+        });
+
+        return () => backHandler.remove();
+    }, []);
+
+    const handleTrackOrder = () => {
+        // Navigate to Orders tab to track order
+        navigateToTab('Orders');
+    };
 
     const getStepStatus = (index: number) => {
         if (index <= currentStep) return 'completed';
@@ -140,13 +136,7 @@ const OrderConfirmationScreen: React.FC<OrderConfirmationProps> = ({
         ]}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backButton} activeOpacity={0.7}>
-                    <Ionicons name="arrow-back" size={24} color="#1C1C1E" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Order Status</Text>
-                <TouchableOpacity style={styles.helpButton} activeOpacity={0.7}>
-                    <Ionicons name="help-circle-outline" size={24} color="#1C1C1E" />
-                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Order Confirmed!</Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
@@ -183,46 +173,31 @@ const OrderConfirmationScreen: React.FC<OrderConfirmationProps> = ({
                     </View>
                 </View>
 
-                {/* Order Progress */}
-                <View style={styles.progressSection}>
-                    <Text style={styles.progressTitle}>Order Progress</Text>
-                    <View style={styles.progressContainer}>
-                        {orderSteps.map((step, index) => renderOrderStep(step, index))}
+                {/* Order Status Info */}
+                <View style={styles.statusSection}>
+                    <View style={styles.statusCard}>
+                        <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
+                        <View style={styles.statusInfo}>
+                            <Text style={styles.statusTitle}>Order Confirmed</Text>
+                            <Text style={styles.statusSubtitle}>Your order is being prepared by the restaurant</Text>
+                        </View>
+                    </View>
+                    
+                    <View style={styles.statusCard}>
+                        <Ionicons name="restaurant" size={32} color="#e36057ff" />
+                        <View style={styles.statusInfo}>
+                            <Text style={styles.statusTitle}>Restaurant Notified</Text>
+                            <Text style={styles.statusSubtitle}>You'll receive updates on your order status</Text>
+                        </View>
                     </View>
                 </View>
 
-                {/* Restaurant Info */}
-                <View style={styles.restaurantInfo}>
-                    <View style={styles.restaurantHeader}>
-                        <View style={styles.restaurantIcon}>
-                            <Ionicons name="restaurant" size={24} color="#e36057ff" />
-                        </View>
-                        <View style={styles.restaurantDetails}>
-                            <Text style={styles.restaurantName}>TipTop Restaurant</Text>
-                            <Text style={styles.restaurantAddress}>Main Street, Downtown</Text>
-                        </View>
-                        <TouchableOpacity style={styles.callButton} activeOpacity={0.7}>
-                            <Ionicons name="call" size={20} color="#FFFFFF" />
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
-                {/* Quick Actions */}
-                <View style={styles.quickActions}>
-                    <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
-                        <Ionicons name="refresh-outline" size={20} color="#e36057ff" />
-                        <Text style={styles.actionButtonText}>Reorder</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
-                        <Ionicons name="receipt-outline" size={20} color="#e36057ff" />
-                        <Text style={styles.actionButtonText}>View Receipt</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
-                        <Ionicons name="chatbubble-outline" size={20} color="#e36057ff" />
-                        <Text style={styles.actionButtonText}>Help & Support</Text>
-                    </TouchableOpacity>
+                {/* Info Message */}
+                <View style={styles.infoBox}>
+                    <Ionicons name="information-circle-outline" size={20} color="#2196F3" />
+                    <Text style={styles.infoText}>
+                        Track your order status in real-time from the Orders tab
+                    </Text>
                 </View>
 
                 <View style={styles.bottomSpacer} />
@@ -230,7 +205,11 @@ const OrderConfirmationScreen: React.FC<OrderConfirmationProps> = ({
 
             {/* Track Order Button */}
             <View style={styles.trackOrderContainer}>
-                <TouchableOpacity style={styles.trackOrderButton} activeOpacity={0.8}>
+                <TouchableOpacity 
+                    style={styles.trackOrderButton} 
+                    activeOpacity={0.8}
+                    onPress={handleTrackOrder}
+                >
                     <Ionicons name="navigate-outline" size={24} color="#FFFFFF" />
                     <Text style={styles.trackOrderText}>Track Your Order</Text>
                 </TouchableOpacity>
@@ -245,8 +224,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#F8F9FA',
     },
     header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 20,
         paddingTop: 60,
@@ -258,11 +236,8 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 3,
     },
-    backButton: {
-        padding: 8,
-    },
     headerTitle: {
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: '700',
         color: '#1C1C1E',
         fontFamily: 'System',
@@ -373,111 +348,51 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#E5E5EA',
     },
-    stepIndicatorCompleted: {
-        backgroundColor: '#4CAF50',
-        borderColor: '#4CAF50',
+    statusSection: {
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 20,
+        paddingVertical: 24,
+        marginBottom: 12,
     },
-    stepIndicatorActive: {
-        backgroundColor: '#FFF3F0',
-        borderColor: '#e36057ff',
+    statusCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20,
     },
-    stepConnector: {
-        width: 2,
-        height: 40,
-        backgroundColor: '#E5E5EA',
-        marginTop: 4,
-    },
-    stepConnectorCompleted: {
-        backgroundColor: '#4CAF50',
-    },
-    stepContent: {
+    statusInfo: {
         flex: 1,
-        paddingBottom: 24,
+        marginLeft: 16,
     },
-    stepTitle: {
+    statusTitle: {
         fontSize: 16,
-        fontWeight: '600',
-        color: '#8E8E93',
+        fontWeight: '700',
+        color: '#1C1C1E',
         fontFamily: 'System',
         marginBottom: 4,
     },
-    stepTitleCompleted: {
-        color: '#1C1C1E',
-    },
-    stepTitleActive: {
-        color: '#e36057ff',
-        fontWeight: '700',
-    },
-    stepSubtitle: {
+    statusSubtitle: {
         fontSize: 14,
         color: '#8E8E93',
         fontFamily: 'System',
         lineHeight: 18,
     },
-    stepSubtitleActive: {
-        color: '#1C1C1E',
-    },
-    restaurantInfo: {
-        backgroundColor: '#FFFFFF',
-        paddingHorizontal: 20,
-        paddingVertical: 20,
-        marginBottom: 8,
-    },
-    restaurantHeader: {
+    infoBox: {
         flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: '#E3F2FD',
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        marginHorizontal: 20,
+        marginBottom: 20,
+        borderRadius: 12,
     },
-    restaurantIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: '#FFF3F0',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 16,
-    },
-    restaurantDetails: {
+    infoText: {
         flex: 1,
-    },
-    restaurantName: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#1C1C1E',
+        fontSize: 13,
+        color: '#1976D2',
         fontFamily: 'System',
-        marginBottom: 2,
-    },
-    restaurantAddress: {
-        fontSize: 14,
-        color: '#8E8E93',
-        fontFamily: 'System',
-    },
-    callButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#e36057ff',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    quickActions: {
-        backgroundColor: '#FFFFFF',
-        paddingHorizontal: 20,
-        paddingVertical: 20,
-        marginBottom: 8,
-    },
-    actionButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
-    },
-    actionButtonText: {
-        fontSize: 16,
-        color: '#1C1C1E',
-        fontFamily: 'System',
-        marginLeft: 16,
-        fontWeight: '500',
+        marginLeft: 10,
+        lineHeight: 18,
     },
     bottomSpacer: {
         height: 100,
